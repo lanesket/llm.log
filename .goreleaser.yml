@@ -19,7 +19,8 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 brews:
-  - repository:
+  - name: llm-log
+    repository:
       owner: lanesket
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
