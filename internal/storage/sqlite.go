@@ -60,6 +60,7 @@ type StatsFilter struct {
 // Store is the storage interface.
 type Store interface {
 	Save(rec *Record) error
+	SaveBatch(recs []*Record) error
 	Stats(f StatsFilter) ([]StatRow, error)
 	Recent(n int, from, to time.Time, provider, source string) ([]Record, error)
 	Get(id int64) (*Record, error)
@@ -117,49 +118,69 @@ func migrate(db *sql.DB) error {
 }
 
 func (s *SQLite) Save(rec *Record) error {
+	return s.SaveBatch([]*Record{rec})
+}
+
+// SaveBatch writes multiple records in a single transaction.
+func (s *SQLite) SaveBatch(recs []*Record) error {
+	if len(recs) == 0 {
+		return nil
+	}
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	ts := rec.Timestamp.UTC().Format(time.RFC3339)
-	streaming := 0
-	if rec.Streaming {
-		streaming = 1
-	}
-
-	res, err := tx.Exec(`
+	insertReq, err := tx.Prepare(`
 		INSERT INTO requests (timestamp, provider, model, endpoint, source, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_cost, duration_ms, streaming, status_code)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		ts, rec.Provider, rec.Model, rec.Endpoint, rec.Source,
-		rec.InputTokens, rec.OutputTokens, rec.CacheReadTokens, rec.CacheWriteTokens,
-		rec.TotalCost, rec.DurationMs, streaming, rec.StatusCode,
-	)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return err
+		return fmt.Errorf("prepare requests insert: %w", err)
 	}
+	defer insertReq.Close()
 
-	id, err := res.LastInsertId()
+	insertBody, err := tx.Prepare(`INSERT INTO bodies (request_id, request_body, response_body) VALUES (?, ?, ?)`)
 	if err != nil {
-		return fmt.Errorf("last insert id: %w", err)
+		return fmt.Errorf("prepare bodies insert: %w", err)
 	}
-	rec.ID = id
+	defer insertBody.Close()
 
-	reqBody, err := compress(rec.RequestBody)
-	if err != nil {
-		return fmt.Errorf("compress request: %w", err)
-	}
-	respBody, err := compress(rec.ResponseBody)
-	if err != nil {
-		return fmt.Errorf("compress response: %w", err)
-	}
+	for _, rec := range recs {
+		ts := rec.Timestamp.UTC().Format(time.RFC3339)
+		streaming := 0
+		if rec.Streaming {
+			streaming = 1
+		}
 
-	_, err = tx.Exec(`INSERT INTO bodies (request_id, request_body, response_body) VALUES (?, ?, ?)`,
-		id, reqBody, respBody,
-	)
-	if err != nil {
-		return err
+		res, err := insertReq.Exec(
+			ts, rec.Provider, rec.Model, rec.Endpoint, rec.Source,
+			rec.InputTokens, rec.OutputTokens, rec.CacheReadTokens, rec.CacheWriteTokens,
+			rec.TotalCost, rec.DurationMs, streaming, rec.StatusCode,
+		)
+		if err != nil {
+			return err
+		}
+
+		id, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("last insert id: %w", err)
+		}
+		rec.ID = id
+
+		reqBody, err := compress(rec.RequestBody)
+		if err != nil {
+			return fmt.Errorf("compress request: %w", err)
+		}
+		respBody, err := compress(rec.ResponseBody)
+		if err != nil {
+			return fmt.Errorf("compress response: %w", err)
+		}
+
+		if _, err = insertBody.Exec(id, reqBody, respBody); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()

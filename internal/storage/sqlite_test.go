@@ -250,6 +250,111 @@ func TestStats_TimeFilter(t *testing.T) {
 	}
 }
 
+func TestSaveBatch_Empty(t *testing.T) {
+	store := testDB(t)
+	if err := store.SaveBatch(nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveBatch([]*Record{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSaveBatch_SetsIDs(t *testing.T) {
+	store := testDB(t)
+
+	recs := []*Record{
+		{Timestamp: time.Now(), Provider: "openai", Model: "gpt-4", Endpoint: "/v1/chat/completions", StatusCode: 200},
+		{Timestamp: time.Now(), Provider: "anthropic", Model: "claude-3", Endpoint: "/v1/messages", StatusCode: 200},
+	}
+	if err := store.SaveBatch(recs); err != nil {
+		t.Fatal(err)
+	}
+	for i, r := range recs {
+		if r.ID == 0 {
+			t.Errorf("recs[%d].ID not set after SaveBatch", i)
+		}
+	}
+	if recs[0].ID == recs[1].ID {
+		t.Error("records got the same ID")
+	}
+}
+
+func TestSaveBatch_DataIntegrity(t *testing.T) {
+	store := testDB(t)
+
+	cost := 0.42
+	rec := &Record{
+		Timestamp:    time.Date(2025, 3, 1, 12, 0, 0, 0, time.UTC),
+		Provider:     "openai",
+		Model:        "gpt-4",
+		Endpoint:     "/v1/chat/completions",
+		InputTokens:  100,
+		OutputTokens: 50,
+		TotalCost:    &cost,
+		DurationMs:   300,
+		Streaming:    true,
+		StatusCode:   200,
+		RequestBody:  []byte(`{"req":true}`),
+		ResponseBody: []byte(`{"resp":true}`),
+	}
+
+	if err := store.SaveBatch([]*Record{rec}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Get(rec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Provider != "openai" {
+		t.Errorf("provider = %q", got.Provider)
+	}
+	if got.InputTokens != 100 || got.OutputTokens != 50 {
+		t.Errorf("tokens = %d/%d", got.InputTokens, got.OutputTokens)
+	}
+	if got.TotalCost == nil || *got.TotalCost != 0.42 {
+		t.Errorf("cost = %v", got.TotalCost)
+	}
+	if !got.Streaming {
+		t.Error("streaming should be true")
+	}
+	if string(got.RequestBody) != `{"req":true}` {
+		t.Errorf("request body = %q", got.RequestBody)
+	}
+	if string(got.ResponseBody) != `{"resp":true}` {
+		t.Errorf("response body = %q", got.ResponseBody)
+	}
+}
+
+func TestSaveBatch_MultipleRecords(t *testing.T) {
+	store := testDB(t)
+
+	const n = 25
+	recs := make([]*Record, n)
+	for i := range recs {
+		recs[i] = &Record{
+			Timestamp:  time.Now(),
+			Provider:   "openai",
+			Model:      "gpt-4",
+			Endpoint:   "/v1/chat/completions",
+			StatusCode: 200,
+		}
+	}
+
+	if err := store.SaveBatch(recs); err != nil {
+		t.Fatal(err)
+	}
+
+	records, err := store.Recent(0, time.Time{}, time.Time{}, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != n {
+		t.Errorf("got %d records, want %d", len(records), n)
+	}
+}
+
 func TestCompressDecompress(t *testing.T) {
 	original := []byte(`{"large":"json body with content that should compress well"}`)
 	compressed, err := compress(original)

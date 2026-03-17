@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log"
 	"net/http"
@@ -15,11 +16,22 @@ import (
 	"github.com/lanesket/llm.log/internal/storage"
 )
 
+const (
+	saveBatchSize    = 50
+	saveBatchTimeout = 200 * time.Millisecond
+	saveQueueSize    = 512
+	maxRetries       = 3
+)
+
 // Proxy is the MITM proxy server.
 type Proxy struct {
-	server *http.Server
-	store  storage.Store
-	price  PriceLookup
+	server       *http.Server
+	store        storage.Store
+	price        PriceLookup
+	saveQueue    chan *storage.Record
+	stop         chan struct{}
+	stopped      chan struct{}
+	batchTimeout time.Duration
 }
 
 // PriceLookup calculates cost and normalizes model names. Can be nil.
@@ -52,10 +64,15 @@ func New(addr, dataDir string, store storage.Store, price PriceLookup) (*Proxy, 
 	)
 
 	p := &Proxy{
-		server: &http.Server{Addr: addr, Handler: gp},
-		store:  store,
-		price:  price,
+		server:       &http.Server{Addr: addr, Handler: gp},
+		store:        store,
+		price:        price,
+		saveQueue:    make(chan *storage.Record, saveQueueSize),
+		stop:         make(chan struct{}),
+		stopped:      make(chan struct{}),
+		batchTimeout: saveBatchTimeout,
 	}
+	go p.runBatcher()
 
 	isProvider := goproxy.ReqConditionFunc(func(req *http.Request, ctx *goproxy.ProxyCtx) bool {
 		_, ok := provider.Lookup(hostWithoutPort(req.URL.Host))
@@ -74,9 +91,114 @@ func (p *Proxy) ListenAndServe() error {
 	return p.server.ListenAndServe()
 }
 
-// Shutdown gracefully stops the proxy.
+// Shutdown gracefully stops the proxy, flushing any buffered records.
+// It waits for in-flight requests to finish before signaling the batcher,
+// ensuring no records are lost between server.Shutdown and the drain loop.
 func (p *Proxy) Shutdown() error {
-	return p.server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := p.server.Shutdown(ctx)
+	close(p.stop)
+	<-p.stopped
+	return err
+}
+
+// runBatcher collects records from saveQueue and writes them to the store
+// in batches — either when the batch is full or after a timeout.
+// The timer starts only when the first record of a new batch arrives,
+// guaranteeing a full batchTimeout window for every batch.
+func (p *Proxy) runBatcher() {
+	defer close(p.stopped)
+
+	batch := make([]*storage.Record, 0, saveBatchSize)
+	retries := 0
+	timer := time.NewTimer(p.batchTimeout)
+	timer.Stop() // idle until the first record arrives
+	var timerC <-chan time.Time
+
+	stopTimer := func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timerC = nil
+	}
+
+	clearBatch := func() {
+		for i := range batch {
+			batch[i] = nil // release pointers so GC can reclaim RequestBody/ResponseBody
+		}
+		batch = batch[:0]
+		retries = 0
+	}
+
+	rearmTimer := func() {
+		timer.Reset(p.batchTimeout)
+		timerC = timer.C
+	}
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		if err := p.store.SaveBatch(batch); err != nil {
+			retries++
+			if retries >= maxRetries {
+				log.Printf("batch save failed after %d retries (%d records dropped): %v", retries, len(batch), err)
+				clearBatch()
+			} else {
+				log.Printf("batch save error (%d records, retry %d/%d): %v", len(batch), retries, maxRetries, err)
+				rearmTimer()
+			}
+			return
+		}
+		clearBatch()
+	}
+
+	for {
+		select {
+		case rec := <-p.saveQueue:
+			batch = append(batch, rec)
+			if len(batch) == 1 {
+				// Start the window on the first record of a new batch.
+				rearmTimer()
+			}
+			if len(batch) >= saveBatchSize {
+				flush()
+				if len(batch) == 0 {
+					stopTimer()
+				}
+			}
+		case <-timerC:
+			flush()
+		case <-p.stop:
+			stopTimer()
+			// Drain any records queued before shutdown.
+			for {
+				select {
+				case rec := <-p.saveQueue:
+					batch = append(batch, rec)
+				default:
+					// Final flush: retry up to maxRetries to avoid silent data loss.
+					for attempt := 0; attempt < maxRetries; attempt++ {
+						if len(batch) == 0 {
+							return
+						}
+						if err := p.store.SaveBatch(batch); err != nil {
+							log.Printf("shutdown flush error (attempt %d/%d, %d records): %v", attempt+1, maxRetries, len(batch), err)
+							continue
+						}
+						clearBatch()
+						return
+					}
+					log.Printf("shutdown: %d records lost after %d retries", len(batch), maxRetries)
+					return
+				}
+			}
+		}
+	}
 }
 
 func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
@@ -188,17 +310,18 @@ func (p *Proxy) save(state *requestState, statusCode int, streaming bool, result
 		ResponseBody:     result.ResponseBody,
 	}
 
-	if err := p.store.Save(rec); err != nil {
-		log.Printf("save error: %v", err)
-		return
-	}
-
 	costStr := "n/a"
 	if cost != nil {
 		costStr = format.Cost(*cost)
 	}
 	log.Printf("%-10s %-25s %6d in / %6d out  %s",
 		rec.Provider, rec.Model, rec.InputTokens, rec.OutputTokens, costStr)
+
+	select {
+	case p.saveQueue <- rec:
+	default:
+		log.Printf("save queue full, record dropped")
+	}
 }
 
 type requestState struct {

@@ -23,6 +23,7 @@ A local proxy that sits between your apps and LLM APIs. It intercepts requests, 
 - **Real costs** — auto-updated pricing for 780+ models, cache token breakdowns
 - **Claude Code aware** — on a subscription? see what you'd pay without it. On API keys? see your actual spend
 - **TUI dashboard** — overview, charts, cost breakdown, request inspector
+- **Minimal overhead** — logging is async and never blocks your requests
 - **Single binary** — pure Go, no CGO, no dependencies
 
 ## Install
