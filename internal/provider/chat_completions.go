@@ -40,7 +40,7 @@ func (c *chatCompletions) ModifyRequest(body []byte) ([]byte, error) {
 
 func (c *chatCompletions) Parse(statusCode int, body []byte) (*Result, error) {
 	var resp struct {
-		Model string `json:"model"`
+		Model string  `json:"model"`
 		Usage ccUsage `json:"usage"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -97,8 +97,8 @@ func (c *chatCompletions) ParseStream(events []SSEEvent) (*Result, error) {
 }
 
 type ccUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
 	PromptTokensDetails struct {
 		CachedTokens int `json:"cached_tokens"`
 	} `json:"prompt_tokens_details"`

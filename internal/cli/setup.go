@@ -143,7 +143,7 @@ func createCABundle(dataDir string) error {
 		for _, path := range []string{
 			"/etc/ssl/certs/ca-certificates.crt", // Debian/Ubuntu
 			"/etc/pki/tls/certs/ca-bundle.crt",   // RHEL/Fedora
-			"/etc/ssl/ca-bundle.pem",              // OpenSUSE
+			"/etc/ssl/ca-bundle.pem",             // OpenSUSE
 		} {
 			if data, err := os.ReadFile(path); err == nil {
 				systemCAs = data

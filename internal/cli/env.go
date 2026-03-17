@@ -59,15 +59,15 @@ func proxyEnvVars() []envVar {
 
 	vars := []envVar{
 		{"HTTPS_PROXY", proxyURL},
-		{"https_proxy", proxyURL},        // POSIX lowercase (curl, wget, some Ruby/Python)
+		{"https_proxy", proxyURL},         // POSIX lowercase (curl, wget, some Ruby/Python)
 		{"NODE_EXTRA_CA_CERTS", certPath}, // Node.js (additive — does not replace system CAs)
 	}
 
 	if _, err := os.Stat(bundlePath); err == nil {
 		vars = append(vars,
 			envVar{"SSL_CERT_FILE", bundlePath},      // OpenSSL-based: Go, Ruby, httpx
-			envVar{"REQUESTS_CA_BUNDLE", bundlePath},  // Python requests, OpenAI/Anthropic SDK
-			envVar{"CURL_CA_BUNDLE", bundlePath},      // curl (checked before SSL_CERT_FILE)
+			envVar{"REQUESTS_CA_BUNDLE", bundlePath}, // Python requests, OpenAI/Anthropic SDK
+			envVar{"CURL_CA_BUNDLE", bundlePath},     // curl (checked before SSL_CERT_FILE)
 		)
 	}
 	return vars

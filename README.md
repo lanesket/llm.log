@@ -7,6 +7,14 @@
   <a href="#install">Install</a> · <a href="#quick-start">Quick Start</a> · <a href="#dashboard">Dashboard</a> · <a href="#cli">CLI</a> · <a href="#how-it-works">How it Works</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/lanesket/llm.log/actions/workflows/build.yml"><img src="https://github.com/lanesket/llm.log/actions/workflows/build.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/lanesket/llm.log/releases/latest"><img src="https://img.shields.io/github/v/release/lanesket/llm.log" alt="Release"></a>
+  <a href="https://goreportcard.com/report/github.com/lanesket/llm.log"><img src="https://goreportcard.com/badge/github.com/lanesket/llm.log" alt="Go Report Card"></a>
+  <img src="https://img.shields.io/github/go-mod/go-version/lanesket/llm.log" alt="Go">
+  <a href="https://github.com/lanesket/llm.log/blob/main/LICENSE"><img src="https://img.shields.io/github/license/lanesket/llm.log" alt="License"></a>
+</p>
+
 ---
 
 <p align="center">

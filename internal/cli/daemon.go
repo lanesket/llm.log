@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lanesket/llm.log/internal/format"
 	"github.com/lanesket/llm.log/internal/daemon"
+	"github.com/lanesket/llm.log/internal/format"
 	"github.com/lanesket/llm.log/internal/pricing"
 	"github.com/lanesket/llm.log/internal/proxy"
 	"github.com/lanesket/llm.log/internal/storage"
@@ -251,4 +251,3 @@ var runCmd = &cobra.Command{
 		return p.ListenAndServe()
 	},
 }
-

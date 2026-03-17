@@ -75,8 +75,8 @@ func (r *responsesFormat) ParseStream(events []SSEEvent) (*Result, error) {
 }
 
 type responsesUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens       int `json:"input_tokens"`
+	OutputTokens      int `json:"output_tokens"`
 	InputTokenDetails struct {
 		CachedTokens int `json:"cached_tokens"`
 	} `json:"input_token_details"`

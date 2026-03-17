@@ -39,9 +39,9 @@ func (m *mockStore) Stats(_ storage.StatsFilter) ([]storage.StatRow, error) { re
 func (m *mockStore) Recent(_ int, _, _ time.Time, _, _ string) ([]storage.Record, error) {
 	return nil, nil
 }
-func (m *mockStore) Get(_ int64) (*storage.Record, error)      { return nil, nil }
-func (m *mockStore) Sources(_, _ time.Time) ([]string, error)  { return nil, nil }
-func (m *mockStore) Close() error                              { return nil }
+func (m *mockStore) Get(_ int64) (*storage.Record, error)     { return nil, nil }
+func (m *mockStore) Sources(_, _ time.Time) ([]string, error) { return nil, nil }
+func (m *mockStore) Close() error                             { return nil }
 
 func (m *mockStore) count() int {
 	m.mu.Lock()

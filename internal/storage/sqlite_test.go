@@ -35,19 +35,19 @@ func TestSave_And_Get(t *testing.T) {
 
 	cost := 0.05
 	rec := &Record{
-		Timestamp:    time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC),
-		Provider:     "openai",
-		Model:        "gpt-4",
-		Endpoint:     "/v1/chat/completions",
-		InputTokens:  100,
-		OutputTokens: 50,
+		Timestamp:       time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC),
+		Provider:        "openai",
+		Model:           "gpt-4",
+		Endpoint:        "/v1/chat/completions",
+		InputTokens:     100,
+		OutputTokens:    50,
 		CacheReadTokens: 20,
-		TotalCost:    &cost,
-		DurationMs:   150,
-		Streaming:    true,
-		StatusCode:   200,
-		RequestBody:  []byte(`{"prompt":"hello"}`),
-		ResponseBody: []byte(`{"content":"world"}`),
+		TotalCost:       &cost,
+		DurationMs:      150,
+		Streaming:       true,
+		StatusCode:      200,
+		RequestBody:     []byte(`{"prompt":"hello"}`),
+		ResponseBody:    []byte(`{"content":"world"}`),
 	}
 
 	if err := store.Save(rec); err != nil {
