@@ -1,0 +1,43 @@
+version: 2
+
+builds:
+  - main: ./cmd/llm-log
+    binary: llm-log
+    ldflags:
+      - -s -w -X github.com/lanesket/llm.log/internal/cli.Version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+brews:
+  - repository:
+      owner: lanesket
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/lanesket/llm.log
+    description: Local proxy that tracks tokens, costs, prompts and responses across all LLM API calls
+    license: MIT
+    install: |
+      bin.install "llm-log"
+    test: |
+      system "#{bin}/llm-log", "--version"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

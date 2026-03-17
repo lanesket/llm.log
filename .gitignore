@@ -1,0 +1,11 @@
+# Binary (root only, not cmd/llm-log/)
+/llm-log
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
