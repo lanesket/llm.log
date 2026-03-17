@@ -8,10 +8,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lanesket/llm.log/actions/workflows/build.yml"><img src="https://github.com/lanesket/llm.log/actions/workflows/build.yml/badge.svg" alt="Build"></a>
-  <a href="https://github.com/lanesket/llm.log/releases/latest"><img src="https://img.shields.io/github/v/release/lanesket/llm.log" alt="Release"></a>
-  <a href="https://goreportcard.com/report/github.com/lanesket/llm.log"><img src="https://goreportcard.com/badge/github.com/lanesket/llm.log" alt="Go Report Card"></a>
-  <img src="https://img.shields.io/github/go-mod/go-version/lanesket/llm.log" alt="Go">
+  <a href="https://github.com/lanesket/llm.log/actions/workflows/build.yml"><img src="https://github.com/lanesket/llm.log/actions/workflows/build.yml/badge.svg" alt="Build"></a>&nbsp;
+  <a href="https://github.com/lanesket/llm.log/releases/latest"><img src="https://img.shields.io/github/v/release/lanesket/llm.log" alt="Release"></a>&nbsp;
+  <a href="https://goreportcard.com/report/github.com/lanesket/llm.log"><img src="https://goreportcard.com/badge/github.com/lanesket/llm.log" alt="Go Report Card"></a>&nbsp;
+  <img src="https://img.shields.io/github/go-mod/go-version/lanesket/llm.log" alt="Go">&nbsp;
   <a href="https://github.com/lanesket/llm.log/blob/main/LICENSE"><img src="https://img.shields.io/github/license/lanesket/llm.log" alt="License"></a>
 </p>
 

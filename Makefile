@@ -1,7 +1,7 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS  = -s -w -X github.com/lanesket/llm.log/internal/cli.Version=$(VERSION)
 
-.PHONY: build test lint clean
+.PHONY: build test lint clean setup-hooks
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o llm-log ./cmd/llm-log
@@ -14,3 +14,6 @@ lint:
 
 clean:
 	rm -f llm-log
+
+setup-hooks:
+	git config core.hooksPath .githooks

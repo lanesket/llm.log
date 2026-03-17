@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Check only staged .go files.
+staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.go')
+[ -z "$staged" ] && exit 0
+
+# gofmt -s
+unformatted=$(echo "$staged" | xargs gofmt -s -l 2>/dev/null)
+if [ -n "$unformatted" ]; then
+  echo "gofmt -s: the following files need formatting:"
+  echo "$unformatted" | sed 's/^/  /'
+  echo "Run: gofmt -s -w \$(git diff --cached --name-only -- '*.go')"
+  exit 1
+fi
+
+# go vet
+echo "$staged" | xargs -I{} dirname {} | sort -u | sed 's|^|./|' | xargs go vet 2>&1
+if [ $? -ne 0 ]; then
+  echo "go vet: issues found"
+  exit 1
+fi
+
+# go test (only packages with changed files)
+echo "$staged" | xargs -I{} dirname {} | sort -u | sed 's|^|./|' | xargs go test -count=1 -timeout=60s
