@@ -57,6 +57,12 @@ type StatsFilter struct {
 	Source   string
 }
 
+// PruneStats holds information about bodies eligible for pruning.
+type PruneStats struct {
+	Count int64
+	Bytes int64
+}
+
 // Store is the storage interface.
 type Store interface {
 	Save(rec *Record) error
@@ -65,6 +71,9 @@ type Store interface {
 	Recent(n int, from, to time.Time, provider, source string) ([]Record, error)
 	Get(id int64) (*Record, error)
 	Sources(from, to time.Time) ([]string, error)
+	PrunePreview(before time.Time) (PruneStats, error)
+	PruneBodies(before time.Time) (int64, error)
+	Vacuum() error
 	Close() error
 }
 
@@ -340,6 +349,31 @@ func (s *SQLite) Sources(from, to time.Time) ([]string, error) {
 		result = append(result, s)
 	}
 	return result, rows.Err()
+}
+
+func (s *SQLite) PrunePreview(before time.Time) (PruneStats, error) {
+	var ps PruneStats
+	err := s.db.QueryRow(`
+		SELECT COUNT(*), COALESCE(SUM(COALESCE(LENGTH(b.request_body), 0) + COALESCE(LENGTH(b.response_body), 0)), 0)
+		FROM bodies b JOIN requests r ON b.request_id = r.id
+		WHERE r.timestamp < ?`, before.UTC().Format(time.RFC3339)).Scan(&ps.Count, &ps.Bytes)
+	return ps, err
+}
+
+func (s *SQLite) PruneBodies(before time.Time) (int64, error) {
+	res, err := s.db.Exec(`
+		DELETE FROM bodies WHERE request_id IN (
+			SELECT id FROM requests WHERE timestamp < ?
+		)`, before.UTC().Format(time.RFC3339))
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+func (s *SQLite) Vacuum() error {
+	_, err := s.db.Exec("VACUUM")
+	return err
 }
 
 func (s *SQLite) Close() error {

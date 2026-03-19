@@ -1,6 +1,7 @@
 # Binary (root only, not cmd/llm-log/)
 /llm-log
 dist/
+completions/
 
 # IDE
 .idea/

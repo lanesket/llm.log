@@ -63,9 +63,66 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
+	// 5. Generate shell completions
+	fmt.Println("Setting up shell completions...")
+	if err := setupCompletions(dir); err != nil {
+		fmt.Printf("  ✗ %v\n", err)
+	} else {
+		fmt.Println("  ✓ Shell completions installed")
+	}
+	fmt.Println()
+
 	fmt.Println("Restart your shell or run: source ~/." + shellName() + "rc")
 	fmt.Println("Then run: llm-log start")
 
+	return nil
+}
+
+func setupCompletions(dataDir string) error {
+	compDir := filepath.Join(dataDir, "completions")
+	if err := os.MkdirAll(compDir, 0755); err != nil {
+		return err
+	}
+
+	shell := shellName()
+	switch shell {
+	case "zsh":
+		f, err := os.Create(filepath.Join(compDir, "_llm-log"))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if err := rootCmd.GenZshCompletion(f); err != nil {
+			return err
+		}
+		return addFpathToRC(compDir)
+	case "bash":
+		f, err := os.Create(filepath.Join(compDir, "llm-log.bash"))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		return rootCmd.GenBashCompletion(f)
+	default:
+		return fmt.Errorf("unsupported shell: %s", shell)
+	}
+}
+
+func addFpathToRC(compDir string) error {
+	rcFile := filepath.Join(os.Getenv("HOME"), ".zshrc")
+	content, err := os.ReadFile(rcFile)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(content), "llm.log/completions") {
+		return nil
+	}
+	f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "\n# llm.log completions\nfpath=(%s $fpath)\nautoload -Uz compinit && compinit\n", compDir)
 	return nil
 }
 

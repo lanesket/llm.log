@@ -1,5 +1,13 @@
 version: 2
 
+before:
+  hooks:
+    - go build -o /tmp/llm-log-completions ./cmd/llm-log
+    - mkdir -p completions
+    - sh -c "/tmp/llm-log-completions completion bash > completions/llm-log.bash"
+    - sh -c "/tmp/llm-log-completions completion zsh > completions/llm-log.zsh"
+    - sh -c "/tmp/llm-log-completions completion fish > completions/llm-log.fish"
+
 builds:
   - main: ./cmd/llm-log
     binary: llm-log
@@ -17,6 +25,8 @@ builds:
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - completions/*
 
 brews:
   - name: llm-log
@@ -28,8 +38,10 @@ brews:
     homepage: https://github.com/lanesket/llm.log
     description: Local proxy that tracks tokens, costs, prompts and responses across all LLM API calls
     license: MIT
-    install: |
-      bin.install "llm-log"
+    extra_install: |
+      bash_completion.install "completions/llm-log.bash" => "llm-log"
+      zsh_completion.install "completions/llm-log.zsh" => "_llm-log"
+      fish_completion.install "completions/llm-log.fish" => "llm-log.fish"
     test: |
       system "#{bin}/llm-log", "--version"
 

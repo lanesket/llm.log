@@ -41,7 +41,12 @@ func (m *mockStore) Recent(_ int, _, _ time.Time, _, _ string) ([]storage.Record
 }
 func (m *mockStore) Get(_ int64) (*storage.Record, error)     { return nil, nil }
 func (m *mockStore) Sources(_, _ time.Time) ([]string, error) { return nil, nil }
-func (m *mockStore) Close() error                             { return nil }
+func (m *mockStore) PrunePreview(_ time.Time) (storage.PruneStats, error) {
+	return storage.PruneStats{}, nil
+}
+func (m *mockStore) PruneBodies(_ time.Time) (int64, error) { return 0, nil }
+func (m *mockStore) Vacuum() error                          { return nil }
+func (m *mockStore) Close() error                           { return nil }
 
 func (m *mockStore) count() int {
 	m.mu.Lock()

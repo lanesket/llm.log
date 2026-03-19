@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> · <a href="#quick-start">Quick Start</a> · <a href="#dashboard">Dashboard</a> · <a href="#cli">CLI</a> · <a href="#export">Export</a> · <a href="#how-it-works">How it Works</a>
+  <a href="#install">Install</a> · <a href="#quick-start">Quick Start</a> · <a href="#dashboard">Dashboard</a> · <a href="#cli">CLI</a> · <a href="#export">Export</a> · <a href="#data-management">Data Management</a> · <a href="#how-it-works">How it Works</a>
 </p>
 
 <p align="center">
@@ -120,6 +120,18 @@ llm-log export --with-bodies -p today     # include request/response bodies
 `--from`/`--to` override `--period` when both are provided.
 
 In the dashboard, press `e` to quick-export the current filtered view to `llm-log-export-{timestamp}.csv` in the current directory.
+
+## Data Management
+
+Request/response bodies can grow large over time. Use `prune` to delete old bodies while keeping all metadata (tokens, costs, timestamps).
+
+```bash
+llm-log prune --older-than 30d              # delete bodies older than 30 days
+llm-log prune --older-than 30d --dry-run    # preview without deleting
+llm-log prune --older-than 6m --force       # skip confirmation (for cron)
+```
+
+Supported durations: `7d`, `30d`, `6m`, `1y`.
 
 ## How it Works
 
