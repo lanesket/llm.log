@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> · <a href="#quick-start">Quick Start</a> · <a href="#dashboard">Dashboard</a> · <a href="#cli">CLI</a> · <a href="#how-it-works">How it Works</a>
+  <a href="#install">Install</a> · <a href="#quick-start">Quick Start</a> · <a href="#dashboard">Dashboard</a> · <a href="#cli">CLI</a> · <a href="#export">Export</a> · <a href="#how-it-works">How it Works</a>
 </p>
 
 <p align="center">
@@ -79,7 +79,7 @@ llm-log dashboard   # or: llm-log dash
 | **Cost** | Breakdown by provider/model with percentages, latency, bars |
 | **Requests** | Browse requests, inspect full prompt/response JSON |
 
-**Keys:** `1-4` tabs · `p` period · `s` source · `f` provider · `m` model/provider · `j/k` navigate · `enter` detail · `c/p/r` copy · `?` help · `q` quit
+**Keys:** `1-4` tabs · `p` period · `s` source · `f` provider · `m` model/provider · `j/k` navigate · `enter` detail · `c/p/r` copy · `e` export · `?` help · `q` quit
 
 ## CLI
 
@@ -92,6 +92,34 @@ llm-log stats                     # usage stats by provider
 llm-log stats -b model -p week   # by model, last week
 llm-log stats --json              # JSON output
 ```
+
+## Export
+
+Export logged data to CSV, JSON, or JSONL for analysis in Excel, Jupyter, pandas, etc.
+
+```bash
+llm-log export                            # CSV to stdout (last month)
+llm-log export -f json -o data.json       # JSON to file
+llm-log export -f jsonl -p week           # JSONL, last week
+llm-log export --from 2025-03-01 --to 2025-03-15  # date range
+llm-log export -s cc:sub --provider anthropic      # filtered
+llm-log export --with-bodies -p today     # include request/response bodies
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-f, --format` | Output format: `csv`, `json`, `jsonl` | `csv` |
+| `-p, --period` | Period: `today`, `week`, `month`, `all` | `month` |
+| `--from` | Start date (`YYYY-MM-DD`) | — |
+| `--to` | End date (`YYYY-MM-DD`) | — |
+| `-s, --source` | Filter by source | all |
+| `--provider` | Filter by provider | all |
+| `-o, --output` | Output file (default: stdout) | stdout |
+| `--with-bodies` | Include request/response bodies | `false` |
+
+`--from`/`--to` override `--period` when both are provided.
+
+In the dashboard, press `e` to quick-export the current filtered view to `llm-log-export-{timestamp}.csv` in the current directory.
 
 ## How it Works
 

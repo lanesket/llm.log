@@ -3,7 +3,9 @@ package dashboard
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -12,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lanesket/llm.log/internal/daemon"
+	"github.com/lanesket/llm.log/internal/export"
 	"github.com/lanesket/llm.log/internal/format"
 	"github.com/lanesket/llm.log/internal/storage"
 )
@@ -129,6 +132,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.costGroupBy = "provider"
 				}
 			}
+		case "e":
+			return m.exportCurrent()
 		case "j", "down":
 			if m.activeTab == tabRequests && m.reqCursor < len(m.requests)-1 {
 				m.reqCursor++
@@ -207,6 +212,42 @@ func (m Model) copyToClipboard(what string) (tea.Model, tea.Cmd) {
 		m.copyNotice = what + " copied!"
 	}
 	return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg { return clearCopyMsg{} })
+}
+
+func (m Model) exportCurrent() (tea.Model, tea.Cmd) {
+	notice, err := m.doExport()
+	if err != nil {
+		m.copyNotice = "export failed: " + err.Error()
+	} else {
+		m.copyNotice = notice
+	}
+	return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg { return clearCopyMsg{} })
+}
+
+func (m Model) doExport() (string, error) {
+	filename := fmt.Sprintf("llm-log-export-%s.csv", time.Now().Format("20060102-150405"))
+
+	from, to := storage.PeriodToTimeRange(m.period)
+	records, err := m.store.Recent(0, from, to, m.providerFilter, m.source)
+	if err != nil {
+		return "", err
+	}
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	if err := export.Write(f, records, export.Options{Format: export.CSV}, nil); err != nil {
+		return "", err
+	}
+
+	path := filename
+	if abs, err := filepath.Abs(filename); err == nil {
+		path = abs
+	}
+	return "exported to " + path, nil
 }
 
 func (m Model) contentHeight() int {
@@ -294,7 +335,12 @@ func (m Model) renderHelp() string {
 	case tabRequests:
 		nav += " · ↑↓: navigate · enter: detail"
 	}
-	nav += " · p: period · s: source · f: provider · ?: help · q: quit"
+	nav += " · e: export · p: period · s: source · f: provider · ?: help · q: quit"
+
+	if m.copyNotice != "" {
+		nav = lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓ "+m.copyNotice) +
+			" · q: quit"
+	}
 
 	provState := "all"
 	if m.providerFilter != "" {
@@ -811,6 +857,7 @@ func (m Model) viewHelp() string {
 			{"p", "Cycle period"},
 			{"s", "Cycle source filter"},
 			{"f", "Cycle provider filter"},
+			{"e", "Export filtered data to CSV"},
 			{"?", "Toggle help"},
 			{"q / ctrl+c", "Quit"},
 		}},

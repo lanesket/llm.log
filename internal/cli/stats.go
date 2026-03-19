@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/lanesket/llm.log/internal/format"
 	"github.com/lanesket/llm.log/internal/storage"
@@ -43,22 +42,9 @@ func runStats(cmd *cobra.Command, args []string) error {
 	toStr, _ := cmd.Flags().GetString("to")
 	asJSON, _ := cmd.Flags().GetBool("json")
 
-	var from, to time.Time
-	if fromStr != "" {
-		var err error
-		if from, err = time.Parse("2006-01-02", fromStr); err != nil {
-			return fmt.Errorf("invalid --from date %q (expected YYYY-MM-DD): %w", fromStr, err)
-		}
-	}
-	if toStr != "" {
-		var err error
-		if to, err = time.Parse("2006-01-02", toStr); err != nil {
-			return fmt.Errorf("invalid --to date %q (expected YYYY-MM-DD): %w", toStr, err)
-		}
-		to = to.Add(24*time.Hour - time.Second)
-	}
-	if fromStr == "" && toStr == "" {
-		from, to = storage.PeriodToTimeRange(period)
+	from, to, err := parseDateRange(fromStr, toStr, period)
+	if err != nil {
+		return err
 	}
 
 	stats, err := store.Stats(storage.StatsFilter{
