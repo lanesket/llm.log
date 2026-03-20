@@ -26,7 +26,7 @@
 A local proxy that sits between your apps and LLM APIs. It intercepts requests, extracts token usage, calculates costs, and stores everything in SQLite — without changing a single line of code.
 
 - **Zero code changes** — works via `HTTPS_PROXY`, picked up by most apps automatically
-- **All providers** — OpenAI, Anthropic, OpenRouter — easy to add more
+- **All major providers** — OpenAI, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, and [more](#providers-and-formats)
 - **All API formats** — Chat Completions, Responses API, Anthropic Messages
 - **Real costs** — auto-updated pricing for 780+ models, cache token breakdowns
 - **Claude Code aware** — on a subscription? see what you'd pay without it. On API keys? see your actual spend
@@ -155,8 +155,15 @@ Your app ──HTTPS_PROXY──▸ llm.log (127.0.0.1:9922)
 | OpenAI | api.openai.com | Chat Completions, Responses API |
 | Anthropic | api.anthropic.com | Anthropic Messages |
 | OpenRouter | openrouter.ai | All three |
+| Groq | api.groq.com | Chat Completions |
+| Together AI | api.together.xyz | Chat Completions |
+| Fireworks | api.fireworks.ai | Chat Completions |
+| DeepSeek | api.deepseek.com | Chat Completions (custom cache tokens) |
+| Mistral | api.mistral.ai | Chat Completions |
+| Perplexity | api.perplexity.ai | Sonar, Chat Completions |
+| xAI | api.x.ai | Chat Completions |
 
-Both providers and API formats are extensible — each is a single file. See `internal/provider/` for examples.
+Providers and wire formats are extensible — see [Extending llm.log](docs/extending.md).
 
 ### Proxy activation
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0] — 2026-03-21
+
+### Added
+- **7 new providers** — Groq, Together AI, Fireworks, DeepSeek, Mistral, Perplexity, xAI
+  - DeepSeek: custom cache token support (`prompt_cache_hit_tokens`)
+  - Perplexity: Sonar API format (`/v1/sonar` endpoint)
+
+### Changed
+- **Wire format parsers moved to `provider/wire` subpackage** — clear separation between providers (domain → format mapping) and wire formats (response parsing)
+- Deduplicated Chat Completions parsing via `usageMapper` callback — adding new OpenAI-compatible providers requires only a usage mapper function
+- Removed unused `statusCode` parameter from `Format.Parse` interface
+
+### Fixed
+- **Error responses (4xx/5xx) are now tracked** — model name is recovered from the request body when the API response doesn't include it
+
 ## [0.3.0] — 2026-03-19
 
 ### Added
