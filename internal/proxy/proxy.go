@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/elazarl/goproxy"
 	"github.com/lanesket/llm.log/internal/format"
 	"github.com/lanesket/llm.log/internal/provider"
+	"github.com/lanesket/llm.log/internal/provider/wire"
 	"github.com/lanesket/llm.log/internal/storage"
 )
 
@@ -252,6 +254,7 @@ func (p *Proxy) onResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Res
 				result, err := state.format.ParseStream(events)
 				if err != nil {
 					log.Printf("parse error (%s): %v", state.provider.Name(), err)
+					p.save(state, statusCode, true, &wire.Result{ResponseBody: raw})
 					return
 				}
 				p.save(state, statusCode, true, result)
@@ -269,9 +272,10 @@ func (p *Proxy) onResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Res
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 
-	result, err := state.format.Parse(resp.StatusCode, body)
+	result, err := state.format.Parse(body)
 	if err != nil {
 		log.Printf("parse error (%s): %v", state.provider.Name(), err)
+		p.save(state, resp.StatusCode, false, &wire.Result{ResponseBody: body})
 		return resp
 	}
 	p.save(state, resp.StatusCode, false, result)
@@ -279,7 +283,11 @@ func (p *Proxy) onResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Res
 	return resp
 }
 
-func (p *Proxy) save(state *requestState, statusCode int, streaming bool, result *provider.Result) {
+func (p *Proxy) save(state *requestState, statusCode int, streaming bool, result *wire.Result) {
+	// Try to recover model from request body when response doesn't include it (e.g. error responses).
+	if result.Model == "" {
+		result.Model = extractModelFromRequest(state.requestBody)
+	}
 	if result.Model == "" {
 		return
 	}
@@ -326,7 +334,7 @@ func (p *Proxy) save(state *requestState, statusCode int, streaming bool, result
 
 type requestState struct {
 	provider    provider.Provider
-	format      provider.Format
+	format      wire.Format
 	requestBody []byte
 	startTime   time.Time
 	endpoint    string
@@ -385,6 +393,18 @@ func (t *teeReadCloser) Close() error {
 		}
 	})
 	return err
+}
+
+// extractModelFromRequest tries to get the model name from the request body.
+// All major LLM APIs include "model" as a top-level field in the request JSON.
+func extractModelFromRequest(body []byte) string {
+	var req struct {
+		Model string `json:"model"`
+	}
+	if json.Unmarshal(body, &req) == nil {
+		return req.Model
+	}
+	return ""
 }
 
 func hostWithoutPort(host string) string {

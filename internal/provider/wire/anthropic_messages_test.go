@@ -1,4 +1,4 @@
-package provider
+package wire
 
 import (
 	"encoding/json"
@@ -16,7 +16,7 @@ func TestAnthropicMessages_Parse(t *testing.T) {
 		}
 	}`)
 
-	r, err := AnthropicMessages.Parse(200, body)
+	r, err := AnthropicMessages.Parse(body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestAnthropicMessages_Parse(t *testing.T) {
 
 func TestAnthropicMessages_Parse_NoCaching(t *testing.T) {
 	body := []byte(`{"model":"claude-haiku-4-5","usage":{"input_tokens":50,"output_tokens":30}}`)
-	r, err := AnthropicMessages.Parse(200, body)
+	r, err := AnthropicMessages.Parse(body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,15 +83,5 @@ func TestAnthropicMessages_ParseStream(t *testing.T) {
 	json.Unmarshal(r.ResponseBody, &body)
 	if body["content"] != "Hello world" {
 		t.Errorf("content = %q", body["content"])
-	}
-}
-
-func TestAnthropicProvider_ResolveFormat(t *testing.T) {
-	p, ok := Lookup("api.anthropic.com")
-	if !ok {
-		t.Fatal("api.anthropic.com not registered")
-	}
-	if f := ResolveFormat(p, "/v1/messages"); f != AnthropicMessages {
-		t.Error("expected AnthropicMessages for /v1/messages")
 	}
 }

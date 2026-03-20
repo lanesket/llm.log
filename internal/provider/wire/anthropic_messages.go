@@ -1,4 +1,4 @@
-package provider
+package wire
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 // Used by: Anthropic (/v1/messages), OpenRouter.
 // Anthropic reports input_tokens as the uncached portion only,
 // so total = input_tokens + cache_read + cache_creation.
+// Spec: https://platform.claude.com/docs/en/api/messages
 var AnthropicMessages Format = &anthropicMessages{}
 
 type anthropicMessages struct{}
@@ -21,7 +22,7 @@ func (a *anthropicMessages) ModifyRequest(body []byte) ([]byte, error) {
 	return body, nil
 }
 
-func (a *anthropicMessages) Parse(statusCode int, body []byte) (*Result, error) {
+func (a *anthropicMessages) Parse(body []byte) (*Result, error) {
 	var resp struct {
 		Model string `json:"model"`
 		Usage struct {

@@ -1,4 +1,4 @@
-package provider
+package wire
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ func TestResponses_Parse(t *testing.T) {
 		}
 	}`)
 
-	r, err := Responses.Parse(200, body)
+	r, err := Responses.Parse(body)
 	if err != nil {
 		t.Fatal(err)
 	}

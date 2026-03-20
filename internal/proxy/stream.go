@@ -5,13 +5,13 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/lanesket/llm.log/internal/provider"
+	"github.com/lanesket/llm.log/internal/provider/wire"
 )
 
 // ParseSSE parses raw SSE data into events.
 // SSE format: "event: <type>\ndata: <json>\n\n"
-func ParseSSE(raw []byte) []provider.SSEEvent {
-	var events []provider.SSEEvent
+func ParseSSE(raw []byte) []wire.SSEEvent {
+	var events []wire.SSEEvent
 	scanner := bufio.NewScanner(bytes.NewReader(raw))
 
 	var currentEvent string
@@ -24,7 +24,7 @@ func ParseSSE(raw []byte) []provider.SSEEvent {
 			// Empty line = end of event
 			if len(dataLines) > 0 {
 				data := strings.Join(dataLines, "\n")
-				events = append(events, provider.SSEEvent{
+				events = append(events, wire.SSEEvent{
 					Event: currentEvent,
 					Data:  []byte(data),
 				})
@@ -46,7 +46,7 @@ func ParseSSE(raw []byte) []provider.SSEEvent {
 	// Handle trailing event without final newline
 	if len(dataLines) > 0 {
 		data := strings.Join(dataLines, "\n")
-		events = append(events, provider.SSEEvent{
+		events = append(events, wire.SSEEvent{
 			Event: currentEvent,
 			Data:  []byte(data),
 		})

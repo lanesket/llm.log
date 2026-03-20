@@ -1,4 +1,4 @@
-package provider
+package wire
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ func TestChatCompletions_Parse(t *testing.T) {
 		}
 	}`)
 
-	r, err := ChatCompletions.Parse(200, body)
+	r, err := ChatCompletions.Parse(body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,6 +30,23 @@ func TestChatCompletions_Parse(t *testing.T) {
 	}
 	if r.CacheReadTokens != 20 {
 		t.Errorf("cached = %d, want 20", r.CacheReadTokens)
+	}
+}
+
+func TestChatCompletions_Parse_ErrorResponse(t *testing.T) {
+	// Error responses have no model/usage — Parse returns empty Result, not an error.
+	// The proxy layer handles model recovery from the request body.
+	body := []byte(`{"error":{"message":"rate limited","type":"rate_limit_error"}}`)
+
+	r, err := ChatCompletions.Parse(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Model != "" {
+		t.Errorf("model = %q, want empty", r.Model)
+	}
+	if r.InputTokens != 0 || r.OutputTokens != 0 {
+		t.Errorf("tokens = %d/%d, want 0/0", r.InputTokens, r.OutputTokens)
 	}
 }
 
@@ -103,18 +120,5 @@ func TestChatCompletions_ParseStream(t *testing.T) {
 	json.Unmarshal(r.ResponseBody, &body)
 	if body["content"] != "Hello world" {
 		t.Errorf("content = %q", body["content"])
-	}
-}
-
-func TestOpenAI_ResolveFormat(t *testing.T) {
-	p, ok := Lookup("api.openai.com")
-	if !ok {
-		t.Fatal("api.openai.com not registered")
-	}
-	if f := ResolveFormat(p, "/v1/chat/completions"); f != ChatCompletions {
-		t.Error("expected ChatCompletions for /v1/chat/completions")
-	}
-	if f := ResolveFormat(p, "/v1/responses"); f != Responses {
-		t.Error("expected Responses for /v1/responses")
 	}
 }

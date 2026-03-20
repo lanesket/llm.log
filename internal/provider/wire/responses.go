@@ -1,4 +1,4 @@
-package provider
+package wire
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 // Used by: OpenAI (/v1/responses), OpenRouter.
 // Streaming uses response.output_text.delta for content and
 // response.completed for the final response with usage.
+// Spec: https://platform.openai.com/docs/api-reference/responses/create
 var Responses Format = &responsesFormat{}
 
 type responsesFormat struct{}
@@ -22,7 +23,7 @@ func (r *responsesFormat) ModifyRequest(body []byte) ([]byte, error) {
 	return body, nil
 }
 
-func (r *responsesFormat) Parse(statusCode int, body []byte) (*Result, error) {
+func (r *responsesFormat) Parse(body []byte) (*Result, error) {
 	var resp responsesResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, err
