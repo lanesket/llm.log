@@ -10,3 +10,5 @@ completions/
 
 # OS
 .DS_Store
+
+.claude/settings.local.json
