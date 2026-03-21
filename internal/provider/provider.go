@@ -13,12 +13,12 @@ type Provider interface {
 // ResolveFormat finds the matching format for a request path.
 // Falls back to the provider's last (default) format.
 func ResolveFormat(p Provider, path string) wire.Format {
-	for _, f := range p.Formats() {
+	fmts := p.Formats()
+	for _, f := range fmts {
 		if f.MatchPath(path) {
 			return f
 		}
 	}
-	fmts := p.Formats()
 	return fmts[len(fmts)-1]
 }
 

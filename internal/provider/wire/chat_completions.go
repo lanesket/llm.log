@@ -8,28 +8,52 @@ import (
 // ChatCompletions parses the OpenAI Chat Completions format.
 // Used by: OpenAI (/v1/chat/completions), OpenRouter, and any OpenAI-compatible API.
 // Spec: https://platform.openai.com/docs/api-reference/chat/create
-var ChatCompletions Format = &chatCompletions{}
+var ChatCompletions Format = NewCCFormat("/chat/completions", openaiUsage)
 
-type chatCompletions struct{}
+// DeepSeekChatCompletions extends Chat Completions with DeepSeek-specific
+// cache token fields (prompt_cache_hit_tokens instead of prompt_tokens_details.cached_tokens).
+// Spec: https://api-docs.deepseek.com/api/create-chat-completion
+var DeepSeekChatCompletions Format = NewCCFormat("/chat/completions", deepseekUsage)
 
-func (c *chatCompletions) MatchPath(path string) bool {
-	return matchPath(path, "/chat/completions")
+// PerplexitySonar parses the Perplexity Sonar API format.
+// Structurally identical to Chat Completions but uses /sonar endpoint path.
+// Spec: https://docs.perplexity.ai/api-reference/sonar-post
+var PerplexitySonar Format = NewCCFormat("/sonar", openaiUsage)
+
+// NewCCFormat creates a Chat Completions-compatible Format with a custom
+// path suffix and usage mapper. This is the extension point for adding
+// new providers that use Chat Completions with different usage fields.
+func NewCCFormat(pathSuffix string, mapUsage usageMapper) Format {
+	return &ccFormat{pathSuffix: pathSuffix, mapUsage: mapUsage}
 }
 
-func (c *chatCompletions) ModifyRequest(body []byte) ([]byte, error) {
+type ccFormat struct {
+	pathSuffix string
+	mapUsage   usageMapper
+}
+
+func (f *ccFormat) MatchPath(path string) bool {
+	return matchPath(path, f.pathSuffix)
+}
+
+func (f *ccFormat) ModifyRequest(body []byte) ([]byte, error) {
 	return injectStreamUsage(body)
 }
 
-func (c *chatCompletions) Parse(body []byte) (*Result, error) {
-	return parseCCResponse(body, openaiUsage)
+func (f *ccFormat) Parse(body []byte) (*Result, error) {
+	return parseCCResponse(body, f.mapUsage)
 }
 
-func (c *chatCompletions) ParseStream(events []SSEEvent) (*Result, error) {
-	return parseCCStream(events, openaiUsage)
+func (f *ccFormat) ParseStream(events []SSEEvent) (*Result, error) {
+	return parseCCStream(events, f.mapUsage)
 }
+
+// usageMapper extracts token counts from a raw usage JSON object.
+// Each wire format provides its own mapper to handle provider-specific field names.
+// Returns zeros for nil/invalid input — callers handle empty results.
+type usageMapper func(raw json.RawMessage) (input, output, cacheRead, cacheWrite int)
 
 // openaiUsage maps the standard OpenAI usage fields.
-// Returns zeros for nil/invalid input — callers handle empty results.
 func openaiUsage(raw json.RawMessage) (input, output, cacheRead, cacheWrite int) {
 	var u struct {
 		PromptTokens        int `json:"prompt_tokens"`
@@ -42,9 +66,16 @@ func openaiUsage(raw json.RawMessage) (input, output, cacheRead, cacheWrite int)
 	return u.PromptTokens, u.CompletionTokens, u.PromptTokensDetails.CachedTokens, 0
 }
 
-// usageMapper extracts token counts from a raw usage JSON object.
-// Each wire format provides its own mapper to handle provider-specific field names.
-type usageMapper func(raw json.RawMessage) (input, output, cacheRead, cacheWrite int)
+// deepseekUsage maps DeepSeek's cache fields (prompt_cache_hit_tokens).
+func deepseekUsage(raw json.RawMessage) (input, output, cacheRead, cacheWrite int) {
+	var u struct {
+		PromptTokens         int `json:"prompt_tokens"`
+		CompletionTokens     int `json:"completion_tokens"`
+		PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
+	}
+	json.Unmarshal(raw, &u)
+	return u.PromptTokens, u.CompletionTokens, u.PromptCacheHitTokens, 0
+}
 
 // parseCCResponse parses a non-streaming Chat Completions-style response.
 func parseCCResponse(body []byte, mapUsage usageMapper) (*Result, error) {
@@ -70,20 +101,23 @@ func parseCCResponse(body []byte, mapUsage usageMapper) (*Result, error) {
 func parseCCStream(events []SSEEvent, mapUsage usageMapper) (*Result, error) {
 	var result Result
 	var content strings.Builder
+	var chunk struct {
+		Model   string `json:"model"`
+		Choices []struct {
+			Delta struct {
+				Content string `json:"content"`
+			} `json:"delta"`
+		} `json:"choices"`
+		Usage json.RawMessage `json:"usage"`
+	}
 
 	for _, ev := range events {
 		if string(ev.Data) == "[DONE]" {
 			continue
 		}
-		var chunk struct {
-			Model   string `json:"model"`
-			Choices []struct {
-				Delta struct {
-					Content string `json:"content"`
-				} `json:"delta"`
-			} `json:"choices"`
-			Usage json.RawMessage `json:"usage"`
-		}
+		chunk.Model = ""
+		chunk.Choices = chunk.Choices[:0]
+		chunk.Usage = chunk.Usage[:0]
 		if json.Unmarshal(ev.Data, &chunk) != nil {
 			continue
 		}
@@ -113,7 +147,7 @@ func parseCCStream(events []SSEEvent, mapUsage usageMapper) (*Result, error) {
 }
 
 // injectStreamUsage adds stream_options.include_usage to streaming requests.
-// Shared by ChatCompletions and its derivatives.
+// Shared by all Chat Completions-compatible formats.
 func injectStreamUsage(body []byte) ([]byte, error) {
 	var req map[string]any
 	if err := json.Unmarshal(body, &req); err != nil {

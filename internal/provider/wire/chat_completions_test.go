@@ -91,6 +91,106 @@ func TestChatCompletions_ModifyRequest_SkipsNonStreaming(t *testing.T) {
 	}
 }
 
+func TestDeepSeekChatCompletions_Parse(t *testing.T) {
+	body := []byte(`{
+		"model": "deepseek-chat",
+		"usage": {
+			"prompt_tokens": 100,
+			"completion_tokens": 50,
+			"prompt_cache_hit_tokens": 80,
+			"prompt_cache_miss_tokens": 20
+		}
+	}`)
+
+	r, err := DeepSeekChatCompletions.Parse(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Model != "deepseek-chat" {
+		t.Errorf("model = %q", r.Model)
+	}
+	if r.InputTokens != 100 {
+		t.Errorf("input = %d, want 100", r.InputTokens)
+	}
+	if r.OutputTokens != 50 {
+		t.Errorf("output = %d, want 50", r.OutputTokens)
+	}
+	if r.CacheReadTokens != 80 {
+		t.Errorf("cache read = %d, want 80", r.CacheReadTokens)
+	}
+}
+
+func TestDeepSeekChatCompletions_ParseStream(t *testing.T) {
+	events := []SSEEvent{
+		{Data: []byte(`{"model":"deepseek-chat","choices":[{"delta":{"content":"Hi"}}]}`)},
+		{Data: []byte(`{"model":"deepseek-chat","choices":[],"usage":{"prompt_tokens":50,"completion_tokens":10,"prompt_cache_hit_tokens":30,"prompt_cache_miss_tokens":20}}`)},
+		{Data: []byte("[DONE]")},
+	}
+
+	r, err := DeepSeekChatCompletions.ParseStream(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.CacheReadTokens != 30 {
+		t.Errorf("cache read = %d, want 30", r.CacheReadTokens)
+	}
+
+	var body map[string]any
+	json.Unmarshal(r.ResponseBody, &body)
+	if body["content"] != "Hi" {
+		t.Errorf("content = %q", body["content"])
+	}
+}
+
+func TestPerplexitySonar_Parse(t *testing.T) {
+	body := []byte(`{
+		"model": "sonar-pro",
+		"usage": {
+			"prompt_tokens": 20,
+			"completion_tokens": 100,
+			"total_tokens": 120
+		},
+		"citations": ["https://example.com"]
+	}`)
+
+	r, err := PerplexitySonar.Parse(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Model != "sonar-pro" {
+		t.Errorf("model = %q", r.Model)
+	}
+	if r.InputTokens != 20 {
+		t.Errorf("input = %d, want 20", r.InputTokens)
+	}
+	if r.OutputTokens != 100 {
+		t.Errorf("output = %d, want 100", r.OutputTokens)
+	}
+}
+
+func TestPerplexitySonar_ParseStream(t *testing.T) {
+	events := []SSEEvent{
+		{Data: []byte(`{"model":"sonar-pro","choices":[{"delta":{"content":"Hello"}}]}`)},
+		{Data: []byte(`{"model":"sonar-pro","choices":[{"delta":{"content":" world"}}]}`)},
+		{Data: []byte(`{"model":"sonar-pro","choices":[],"usage":{"prompt_tokens":15,"completion_tokens":2}}`)},
+		{Data: []byte("[DONE]")},
+	}
+
+	r, err := PerplexitySonar.ParseStream(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Model != "sonar-pro" {
+		t.Errorf("model = %q", r.Model)
+	}
+	if r.InputTokens != 15 {
+		t.Errorf("input = %d, want 15", r.InputTokens)
+	}
+	if r.OutputTokens != 2 {
+		t.Errorf("output = %d, want 2", r.OutputTokens)
+	}
+}
+
 func TestChatCompletions_ParseStream(t *testing.T) {
 	events := []SSEEvent{
 		{Data: []byte(`{"model":"gpt-4","choices":[{"delta":{"content":"Hello"}}]}`)},
