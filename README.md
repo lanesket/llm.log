@@ -17,8 +17,18 @@
 
 ---
 
+<table>
+  <tr>
+    <td><img src="assets/web-dash.png" alt="Dashboard" width="400"></td>
+    <td><img src="assets/web-requests.png" alt="Requests" width="400"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/web-request.png" alt="Request Detail" width="400"></td>
+    <td><img src="assets/web-analytics.png" alt="Analytics" width="400"></td>
+  </tr>
+</table>
+
 <p align="center">
-  <img src="assets/web-demo.gif" alt="llm.log web dashboard" width="600"><br>
   <sub>Web UI — <code>llm-log ui</code></sub>
 </p>
 
