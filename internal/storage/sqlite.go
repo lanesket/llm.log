@@ -1,81 +1,14 @@
 package storage
 
 import (
-	"bytes"
-	"compress/gzip"
 	"database/sql"
 	"fmt"
-	"io"
 	"path/filepath"
 	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
-
-// Record represents a single intercepted LLM API call.
-type Record struct {
-	ID               int64
-	Timestamp        time.Time
-	Provider         string
-	Model            string
-	Endpoint         string
-	Source           string // "cc:sub", "cc:key", "" (unknown)
-	InputTokens      int    // total input (includes cache read + write)
-	OutputTokens     int
-	CacheReadTokens  int // tokens read from cache
-	CacheWriteTokens int // tokens written to cache (Anthropic only)
-	TotalCost        *float64
-	DurationMs       int
-	Streaming        bool
-	StatusCode       int
-	RequestBody      []byte // populated only by Get()
-	ResponseBody     []byte // populated only by Get()
-}
-
-// StatRow is a single row from an aggregated stats query.
-type StatRow struct {
-	Key              string
-	Provider         string // provider name (useful when GroupBy is "model" or "day")
-	Requests         int
-	InputTokens      int64
-	OutputTokens     int64
-	CacheReadTokens  int64
-	CacheWriteTokens int64
-	TotalCost        float64
-	AvgDurationMs    int
-	Errors           int // non-200 status codes
-}
-
-// StatsFilter controls what stats are returned.
-type StatsFilter struct {
-	From     time.Time
-	To       time.Time
-	GroupBy  string // "provider", "model", "day"
-	Provider string
-	Model    string
-	Source   string
-}
-
-// PruneStats holds information about bodies eligible for pruning.
-type PruneStats struct {
-	Count int64
-	Bytes int64
-}
-
-// Store is the storage interface.
-type Store interface {
-	Save(rec *Record) error
-	SaveBatch(recs []*Record) error
-	Stats(f StatsFilter) ([]StatRow, error)
-	Recent(n int, from, to time.Time, provider, source string) ([]Record, error)
-	Get(id int64) (*Record, error)
-	Sources(from, to time.Time) ([]string, error)
-	PrunePreview(before time.Time) (PruneStats, error)
-	PruneBodies(before time.Time) (int64, error)
-	Vacuum() error
-	Close() error
-}
 
 // SQLite implements Store using modernc.org/sqlite.
 type SQLite struct {
@@ -122,6 +55,9 @@ func migrate(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_requests_timestamp ON requests(timestamp);
 		CREATE INDEX IF NOT EXISTS idx_requests_provider  ON requests(provider);
 		CREATE INDEX IF NOT EXISTS idx_requests_model     ON requests(model);
+		CREATE INDEX IF NOT EXISTS idx_requests_source      ON requests(source);
+		CREATE INDEX IF NOT EXISTS idx_requests_status_code ON requests(status_code);
+		CREATE INDEX IF NOT EXISTS idx_requests_cost        ON requests(total_cost);
 	`)
 	return err
 }
@@ -371,6 +307,12 @@ func (s *SQLite) PruneBodies(before time.Time) (int64, error) {
 	return res.RowsAffected()
 }
 
+func (s *SQLite) MaxID() (int64, error) {
+	var id int64
+	err := s.db.QueryRow("SELECT COALESCE(MAX(id), 0) FROM requests").Scan(&id)
+	return id, err
+}
+
 func (s *SQLite) Vacuum() error {
 	_, err := s.db.Exec("VACUUM")
 	return err
@@ -378,72 +320,6 @@ func (s *SQLite) Vacuum() error {
 
 func (s *SQLite) Close() error {
 	return s.db.Close()
-}
-
-func scanRecords(rows *sql.Rows) ([]Record, error) {
-	var records []Record
-	for rows.Next() {
-		var rec Record
-		var ts string
-		var cost sql.NullFloat64
-		var streaming int
-		if err := rows.Scan(&rec.ID, &ts, &rec.Provider, &rec.Model, &rec.Endpoint, &rec.Source,
-			&rec.InputTokens, &rec.OutputTokens, &rec.CacheReadTokens, &rec.CacheWriteTokens,
-			&cost, &rec.DurationMs, &streaming, &rec.StatusCode); err != nil {
-			return nil, err
-		}
-		var err error
-		if rec.Timestamp, err = time.Parse(time.RFC3339, ts); err != nil {
-			return nil, fmt.Errorf("parse timestamp for record %d: %w", rec.ID, err)
-		}
-		rec.Streaming = streaming == 1
-		if cost.Valid {
-			rec.TotalCost = &cost.Float64
-		}
-		records = append(records, rec)
-	}
-	return records, rows.Err()
-}
-
-// sourceFilter returns a SQL clause for filtering by source.
-// "cc:sub" → exact match; "cc:" → prefix match (all Claude Code).
-func sourceFilter(source string, args *[]any) string {
-	if source == "direct" {
-		return "source = ''"
-	}
-	if strings.HasSuffix(source, ":") {
-		*args = append(*args, source+"%")
-		return "source LIKE ?"
-	}
-	*args = append(*args, source)
-	return "source = ?"
-}
-
-func compress(data []byte) ([]byte, error) {
-	if len(data) == 0 {
-		return nil, nil
-	}
-	var buf bytes.Buffer
-	w := gzip.NewWriter(&buf)
-	if _, err := w.Write(data); err != nil {
-		return nil, err
-	}
-	if err := w.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-func decompress(data []byte) ([]byte, error) {
-	if len(data) == 0 {
-		return nil, nil
-	}
-	r, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-	return io.ReadAll(r)
 }
 
 // PeriodToTimeRange converts a period string to a time range.

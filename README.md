@@ -1,6 +1,6 @@
 <p align="center">
   <h1 align="center">llm.log</h1>
-  <p align="center">All your LLM API calls in one place. Tokens, costs, prompts, responses.<br>Runs locally, single binary, zero config.</p>
+  <p align="center">Track tokens, costs, and every prompt across all your LLM APIs.<br>Runs locally. Web + TUI dashboard, single binary, zero config.</p>
 </p>
 
 <p align="center">
@@ -18,7 +18,13 @@
 ---
 
 <p align="center">
-  <img src="assets/demo.gif" alt="llm.log demo" width="600">
+  <img src="assets/web-demo.gif" alt="llm.log web dashboard" width="600"><br>
+  <sub>Web UI — <code>llm-log ui</code></sub>
+</p>
+
+<p align="center">
+  <img src="assets/demo.gif" alt="llm.log TUI dashboard" width="600"><br>
+  <sub>TUI — <code>llm-log dash</code></sub>
 </p>
 
 ## What is llm.log?
@@ -30,7 +36,8 @@ A local proxy that sits between your apps and LLM APIs. It intercepts requests, 
 - **All API formats** — Chat Completions, Responses API, Anthropic Messages
 - **Real costs** — auto-updated pricing for 780+ models, cache token breakdowns
 - **Claude Code aware** — on a subscription? see what you'd pay without it. On API keys? see your actual spend
-- **TUI dashboard** — overview, charts, cost breakdown, request inspector
+- **Web UI** — browser-based dashboard with real-time charts, analytics, and detailed request inspection
+- **TUI dashboard** — terminal-based overview, charts, cost breakdown, request inspector
 - **Minimal overhead** — logging is async and never blocks your requests
 - **Single binary** — pure Go, no CGO, no dependencies
 
@@ -66,7 +73,19 @@ After setup, **open a new terminal** (or run `source ~/.zshrc`) — then every L
 > Tools that route through their own servers (Cursor Pro, VS Code Copilot with built-in subscription) won't be logged.
 > If the tool supports your own API key, requests go directly to the provider and llm.log captures them.
 
-## Dashboard
+## Web UI
+
+```bash
+llm-log ui   # opens http://localhost:9923
+```
+
+| Page | What it shows |
+|------|---------------|
+| **Dashboard** | Real-time metrics (animated), area charts (requests/cost/tokens), provider breakdown, top models |
+| **Requests** | Paginated table with sorting, filters, search. Click a row to see full detail with copyable values |
+| **Analytics** | Tabbed sections — Cost (over time, cumulative, by provider, distribution, top expensive), Tokens (over time, avg/model, cache hit rate), Performance (latency, heatmap) |
+
+## TUI Dashboard
 
 ```bash
 llm-log dashboard   # or: llm-log dash

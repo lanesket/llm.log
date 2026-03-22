@@ -12,3 +12,8 @@ completions/
 .DS_Store
 
 .claude/settings.local.json
+
+# Web UI
+web/node_modules/
+web/dist/
+!web/dist/index.html

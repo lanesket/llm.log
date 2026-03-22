@@ -41,9 +41,25 @@ func (m *mockStore) Recent(_ int, _, _ time.Time, _, _ string) ([]storage.Record
 }
 func (m *mockStore) Get(_ int64) (*storage.Record, error)     { return nil, nil }
 func (m *mockStore) Sources(_, _ time.Time) ([]string, error) { return nil, nil }
+func (m *mockStore) List(_ storage.ListFilter) (*storage.ListResult, error) {
+	return &storage.ListResult{}, nil
+}
+func (m *mockStore) DashboardStats(_, _ time.Time) (*storage.DashboardData, error) {
+	return &storage.DashboardData{}, nil
+}
 func (m *mockStore) PrunePreview(_ time.Time) (storage.PruneStats, error) {
 	return storage.PruneStats{}, nil
 }
+func (m *mockStore) Analytics(_, _ time.Time, _ string) (*storage.AnalyticsData, error) {
+	return &storage.AnalyticsData{}, nil
+}
+func (m *mockStore) SearchByBody(_ string, _, _ time.Time, _, _ int) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockStore) Filters(_, _ time.Time) (*storage.FilterOptions, error) {
+	return &storage.FilterOptions{}, nil
+}
+func (m *mockStore) MaxID() (int64, error)                  { return 0, nil }
 func (m *mockStore) PruneBodies(_ time.Time) (int64, error) { return 0, nil }
 func (m *mockStore) Vacuum() error                          { return nil }
 func (m *mockStore) Close() error                           { return nil }

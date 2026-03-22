@@ -3,13 +3,10 @@ package cli
 import (
 	"fmt"
 	"log"
-	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/lanesket/llm.log/internal/daemon"
 	"github.com/lanesket/llm.log/internal/format"
@@ -42,23 +39,9 @@ var startCmd = &cobra.Command{
 		clearEnvFile()
 		deactivateSystemProxy()
 
-		exe, err := os.Executable()
+		pid, err := daemon.StartDaemon(proxyAddr, daemonSysProcAttr())
 		if err != nil {
-			return fmt.Errorf("find executable: %w", err)
-		}
-		proc := exec.Command(exe, "run")
-		proc.Stdout = nil
-		proc.Stderr = nil
-		proc.SysProcAttr = daemonSysProcAttr()
-
-		if err := proc.Start(); err != nil {
-			return fmt.Errorf("start daemon: %w", err)
-		}
-
-		// Wait for the proxy to actually start listening before activating env
-		if !waitForPort(proxyAddr, 5*time.Second) {
-			_ = proc.Process.Kill()
-			return fmt.Errorf("daemon failed to start — check ~/.llm.log/llm-log.log")
+			return err
 		}
 
 		// Refresh CA bundle (system CAs may have changed since setup)
@@ -69,7 +52,7 @@ var startCmd = &cobra.Command{
 		}
 		activateSystemProxy()
 
-		fmt.Printf("Started llm-log daemon (PID %d) on %s\n", proc.Process.Pid, proxyAddr)
+		fmt.Printf("Started llm-log daemon (PID %d) on %s\n", pid, proxyAddr)
 		fmt.Println("HTTPS_PROXY is now active for new terminals and apps")
 		return nil
 	},
@@ -78,19 +61,6 @@ var startCmd = &cobra.Command{
 func hasStaleProxyState() bool {
 	_, err := os.Stat(envFile())
 	return err == nil
-}
-
-func waitForPort(addr string, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			return true
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	return false
 }
 
 var stopCmd = &cobra.Command{

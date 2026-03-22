@@ -1,0 +1,295 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: oklch(0.13 0.006 75);
+    --foreground: oklch(0.93 0.008 80);
+    --card: oklch(0.16 0.008 75);
+    --card-foreground: oklch(0.93 0.008 80);
+    --popover: oklch(0.16 0.008 75);
+    --popover-foreground: oklch(0.93 0.008 80);
+    --primary: oklch(0.90 0.008 80);
+    --primary-foreground: oklch(0.16 0.008 75);
+    --secondary: oklch(0.22 0.008 75);
+    --secondary-foreground: oklch(0.93 0.008 80);
+    --muted: oklch(0.22 0.008 75);
+    --muted-foreground: oklch(0.62 0.01 80);
+    --accent: oklch(0.22 0.008 75);
+    --accent-foreground: oklch(0.93 0.008 80);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0.005 80 / 8%);
+    --input: oklch(1 0.005 80 / 12%);
+    --ring: oklch(0.5 0.01 80);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.16 0.008 75);
+    --sidebar-foreground: oklch(0.93 0.008 80);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.93 0.008 80);
+    --sidebar-accent: oklch(0.22 0.008 75);
+    --sidebar-accent-foreground: oklch(0.93 0.008 80);
+    --sidebar-border: oklch(1 0.005 80 / 8%);
+    --sidebar-ring: oklch(0.5 0.01 80);
+
+    --text-display: clamp(2.5rem, 2rem + 1.5vw, 3.5rem);
+    --text-heading-2: clamp(1.125rem, 1rem + 0.25vw, 1.375rem);
+    --text-body: 0.875rem;
+    --text-small: 0.75rem;
+    --text-micro: 0.6875rem;
+    --color-surface-raised: oklch(0.18 0.008 75);
+    --color-surface-hover: oklch(0.21 0.008 75);
+    --color-text-secondary: oklch(0.62 0.01 80);
+    --color-text-tertiary: oklch(0.52 0.008 80);
+    --color-separator: oklch(1 0.005 80 / 6%);
+    --accent-provider: #10b981;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    line-height: 1.5;
+    }
+  html {
+    @apply font-sans;
+    }
+  td, th {
+    line-height: 1.375;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* === UI Animation Utilities === */
+
+:root {
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Staggered fade-slide entrance for page content children */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Fade in */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Scale in (for badges, pills) */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Scale out */
+@keyframes scale-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.85); }
+}
+
+/* Slide in from right (for sheet content) */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Subtle pulse for metric updates */
+@keyframes metric-pulse {
+  0% { box-shadow: 0 0 0 0 var(--pulse-color, rgba(16,185,129,0.3)); }
+  70% { box-shadow: 0 0 0 6px var(--pulse-color, rgba(16,185,129,0)); }
+  100% { box-shadow: 0 0 0 0 var(--pulse-color, rgba(16,185,129,0)); }
+}
+
+/* Content stagger helper — apply to parent, children auto-stagger */
+.animate-stagger > * {
+  animation: fade-in-up 0.4s var(--ease-out-quart) both;
+}
+.animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.animate-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.animate-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.animate-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.animate-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.animate-stagger > *:nth-child(7) { animation-delay: 360ms; }
+.animate-stagger > *:nth-child(8) { animation-delay: 420ms; }
+
+/* Badge entrance */
+.animate-badge-in {
+  animation: scale-in 0.2s var(--ease-out-quart) both;
+}
+
+/* Fade transition for loading/content swap */
+.animate-fade-in {
+  animation: fade-in 0.3s var(--ease-out-quart) both;
+}
+
+/* Chameleon animations */
+@keyframes chameleon-tongue {
+  0% { transform: scaleX(0); }
+  30% { transform: scaleX(1); }
+  100% { transform: scaleX(0); }
+}
+
+@keyframes chameleon-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+@keyframes chameleon-eye-wander {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(2px, 0); }
+  50% { transform: translate(1px, 1px); }
+  75% { transform: translate(-1px, 1px); }
+}
+
+@keyframes chameleon-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes chameleon-eye-independent-a {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(2px, -1px); }
+  66% { transform: translate(-1px, 1px); }
+}
+
+/* Leg animations — alternating stride */
+@keyframes chameleon-leg-front {
+  0% { transform: rotate(-20deg); }
+  50% { transform: rotate(20deg); }
+  100% { transform: rotate(-20deg); }
+}
+@keyframes chameleon-leg-back {
+  0% { transform: rotate(20deg); }
+  50% { transform: rotate(-20deg); }
+  100% { transform: rotate(20deg); }
+}
+
+/* Body bob while walking */
+@keyframes chameleon-body-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+/* Floating hearts */
+@keyframes chameleon-heart {
+  0% { opacity: 0; transform: translateY(0) scale(0.5); }
+  20% { opacity: 1; transform: translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(0.8); }
+}
+
+/* Sleeping Zzz — staggered float */
+@keyframes chameleon-zzz-1 {
+  0%, 100% { opacity: 0; transform: translateY(0); }
+  20% { opacity: 0.7; }
+  80% { opacity: 0.7; }
+  50% { transform: translateY(-4px); }
+}
+@keyframes chameleon-zzz-2 {
+  0%, 100% { opacity: 0; transform: translateY(0); }
+  20% { opacity: 0.5; }
+  80% { opacity: 0.5; }
+  50% { transform: translateY(-5px); }
+}
+@keyframes chameleon-zzz-3 {
+  0%, 100% { opacity: 0; transform: translateY(0); }
+  20% { opacity: 0.3; }
+  80% { opacity: 0.3; }
+  50% { transform: translateY(-6px); }
+}
+
+/* --- Sprite-level animations --- */
+
+@keyframes chameleon-sprite-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(8deg); }
+  75% { transform: rotate(-8deg); }
+}
+
+@keyframes chameleon-sprite-jump {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-10px) scale(1.15); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+/* Click ring burst */
+@keyframes chameleon-click-ring {
+  0% { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+/* Hover glow pulse */
+@keyframes chameleon-glow-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.1); }
+}
+
+/* Startle emoji pop */
+@keyframes chameleon-startle-emoji {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-12px) scale(0.6); }
+}

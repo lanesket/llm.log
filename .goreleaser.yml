@@ -2,6 +2,8 @@ version: 2
 
 before:
   hooks:
+    - go mod tidy
+    - sh -c "cd web && npm ci && npm run build"
     - go build -o /tmp/llm-log-completions ./cmd/llm-log
     - mkdir -p completions
     - sh -c "/tmp/llm-log-completions completion bash > completions/llm-log.bash"
