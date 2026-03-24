@@ -4,7 +4,10 @@
 // is implemented once and reused across providers.
 package wire
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // Format handles parsing for a specific LLM API wire format.
 type Format interface {
@@ -22,13 +25,35 @@ type Result struct {
 	OutputTokens     int
 	CacheReadTokens  int
 	CacheWriteTokens int
-	ResponseBody     []byte
+
+	// AudioInputTokens and AudioOutputTokens are subsets of InputTokens and
+	// OutputTokens that were audio (OpenAI only). Priced at a different rate.
+	AudioInputTokens  int
+	AudioOutputTokens int
+
+	// WebSearchRequests is the number of server-side web searches performed
+	// (Anthropic only). Billed at a flat per-search rate.
+	WebSearchRequests int
+
+	// FastMode indicates the Anthropic response was served in fast mode (6x pricing).
+	// Detected from usage.speed == "fast" in the API response.
+	// Ref: https://platform.claude.com/docs/en/build-with-claude/fast-mode
+	FastMode bool
+
+	ResponseBody []byte
 }
 
 // SSEEvent is a single server-sent event from a streaming response.
 type SSEEvent struct {
 	Event string
 	Data  []byte
+}
+
+// reconstructStreamBody builds a minimal JSON response body from streaming data.
+// Used by all stream parsers to reconstruct a storable response.
+func reconstructStreamBody(model, content string) []byte {
+	b, _ := json.Marshal(map[string]any{"model": model, "content": content})
+	return b
 }
 
 func matchPath(path, suffix string) bool {

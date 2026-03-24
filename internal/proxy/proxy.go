@@ -38,7 +38,10 @@ type Proxy struct {
 
 // PriceLookup calculates cost and normalizes model names. Can be nil.
 type PriceLookup interface {
-	Cost(providerName, model string, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int) *float64
+	// Cost calculates cost from parsed usage data and request-level modifiers.
+	// multiplier applies to all token costs (e.g. 6.0 for fast mode, 1.1 for data residency).
+	// cacheTTL1h switches cache write rate from 1.25x to 2x input price.
+	Cost(providerName, model string, result *wire.Result, multiplier float64, cacheTTL1h bool) *float64
 	Normalize(gateway, model string) string
 }
 
@@ -291,13 +294,26 @@ func (p *Proxy) save(state *requestState, statusCode int, streaming bool, result
 	if result.Model == "" {
 		return
 	}
+
+	// Detect request-level pricing modifiers (Anthropic only).
+	multiplier := 1.0
+	var cacheTTL1h bool
+	if state.provider.Name() == "anthropic" {
+		multiplier, cacheTTL1h = detectAnthropicModifiers(state, result)
+		// Fast mode: detected from response (usage.speed == "fast").
+		// Ref: https://platform.claude.com/docs/en/build-with-claude/fast-mode
+		if result.FastMode {
+			multiplier *= 6.0
+		}
+	}
+
 	duration := time.Since(state.startTime)
 
 	model := result.Model
 	var cost *float64
 	if p.price != nil {
 		model = p.price.Normalize(state.provider.Name(), model)
-		cost = p.price.Cost(state.provider.Name(), model, result.InputTokens, result.OutputTokens, result.CacheReadTokens, result.CacheWriteTokens)
+		cost = p.price.Cost(state.provider.Name(), model, result, multiplier, cacheTTL1h)
 	}
 
 	rec := &storage.Record{
@@ -393,6 +409,98 @@ func (t *teeReadCloser) Close() error {
 		}
 	})
 	return err
+}
+
+// detectAnthropicModifiers inspects the Anthropic request to determine pricing modifiers.
+// Returns a multiplier (1.0 = none) and whether 1h cache TTL was used.
+// Fast mode is detected separately from the response (usage.speed field).
+//
+// Detected modifiers:
+//   - Data residency (1.1x): inference_geo set to "us" in request body
+//     Ref: https://platform.claude.com/docs/en/about-claude/pricing#data-residency-pricing
+//   - 1-hour cache TTL: any cache_control block in system or messages has ttl: "1h"
+//     Ref: https://platform.claude.com/docs/en/about-claude/pricing#prompt-caching
+func detectAnthropicModifiers(state *requestState, result *wire.Result) (multiplier float64, cacheTTL1h bool) {
+	multiplier = 1.0
+
+	// Data residency and cache TTL: detected from request body.
+	// Use lightweight bytes.Contains guard to avoid full JSON parse on most requests.
+	body := state.requestBody
+	if len(body) > 0 {
+		if bytes.Contains(body, []byte(`"inference_geo"`)) {
+			var req struct {
+				InferenceGeo string `json:"inference_geo"`
+			}
+			if json.Unmarshal(body, &req) == nil && req.InferenceGeo == "us" {
+				multiplier *= 1.1
+			}
+		}
+
+		// 1h cache TTL: scan for "ttl" field, then confirm via JSON parse.
+		if result.CacheWriteTokens > 0 && bytes.Contains(body, []byte(`"ttl"`)) {
+			cacheTTL1h = containsCacheTTL1h(body)
+		}
+	}
+
+	return
+}
+
+// containsCacheTTL1h checks whether any cache_control block in the request
+// has ttl:"1h". Checks both system and messages arrays.
+func containsCacheTTL1h(body []byte) bool {
+	type block struct {
+		CacheControl struct {
+			TTL string `json:"ttl"`
+		} `json:"cache_control"`
+	}
+
+	var req struct {
+		System   json.RawMessage `json:"system"`
+		Messages []struct {
+			Content json.RawMessage `json:"content"`
+			block
+		} `json:"messages"`
+		Tools []block `json:"tools"`
+	}
+	if json.Unmarshal(body, &req) != nil {
+		return false
+	}
+
+	// Check system blocks (can be string or array of content blocks).
+	if len(req.System) > 0 {
+		var blocks []block
+		if json.Unmarshal(req.System, &blocks) == nil {
+			for _, b := range blocks {
+				if b.CacheControl.TTL == "1h" {
+					return true
+				}
+			}
+		}
+	}
+
+	// Check message-level cache_control.
+	for _, m := range req.Messages {
+		if m.CacheControl.TTL == "1h" {
+			return true
+		}
+		var blocks []block
+		if json.Unmarshal(m.Content, &blocks) == nil {
+			for _, b := range blocks {
+				if b.CacheControl.TTL == "1h" {
+					return true
+				}
+			}
+		}
+	}
+
+	// Check tool-level cache_control.
+	for _, tool := range req.Tools {
+		if tool.CacheControl.TTL == "1h" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // extractModelFromRequest tries to get the model name from the request body.

@@ -26,10 +26,14 @@ func (a *anthropicMessages) Parse(body []byte) (*Result, error) {
 	var resp struct {
 		Model string `json:"model"`
 		Usage struct {
-			InputTokens              int `json:"input_tokens"`
-			OutputTokens             int `json:"output_tokens"`
-			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
-			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			InputTokens              int    `json:"input_tokens"`
+			OutputTokens             int    `json:"output_tokens"`
+			CacheReadInputTokens     int    `json:"cache_read_input_tokens"`
+			CacheCreationInputTokens int    `json:"cache_creation_input_tokens"`
+			Speed                    string `json:"speed"`
+			ServerToolUse            struct {
+				WebSearchRequests int `json:"web_search_requests"`
+			} `json:"server_tool_use"`
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -37,12 +41,14 @@ func (a *anthropicMessages) Parse(body []byte) (*Result, error) {
 	}
 	u := resp.Usage
 	return &Result{
-		Model:            resp.Model,
-		InputTokens:      u.InputTokens + u.CacheReadInputTokens + u.CacheCreationInputTokens,
-		OutputTokens:     u.OutputTokens,
-		CacheReadTokens:  u.CacheReadInputTokens,
-		CacheWriteTokens: u.CacheCreationInputTokens,
-		ResponseBody:     body,
+		Model:             resp.Model,
+		InputTokens:       u.InputTokens + u.CacheReadInputTokens + u.CacheCreationInputTokens,
+		OutputTokens:      u.OutputTokens,
+		CacheReadTokens:   u.CacheReadInputTokens,
+		CacheWriteTokens:  u.CacheCreationInputTokens,
+		WebSearchRequests: u.ServerToolUse.WebSearchRequests,
+		FastMode:          u.Speed == "fast",
+		ResponseBody:      body,
 	}, nil
 }
 
@@ -62,9 +68,10 @@ func (a *anthropicMessages) ParseStream(events []SSEEvent) (*Result, error) {
 				Message struct {
 					Model string `json:"model"`
 					Usage struct {
-						InputTokens              int `json:"input_tokens"`
-						CacheReadInputTokens     int `json:"cache_read_input_tokens"`
-						CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+						InputTokens              int    `json:"input_tokens"`
+						CacheReadInputTokens     int    `json:"cache_read_input_tokens"`
+						CacheCreationInputTokens int    `json:"cache_creation_input_tokens"`
+						Speed                    string `json:"speed"`
 					} `json:"usage"`
 				} `json:"message"`
 			}
@@ -74,6 +81,9 @@ func (a *anthropicMessages) ParseStream(events []SSEEvent) (*Result, error) {
 				result.CacheReadTokens = u.CacheReadInputTokens
 				result.CacheWriteTokens = u.CacheCreationInputTokens
 				result.InputTokens = u.InputTokens + u.CacheReadInputTokens + u.CacheCreationInputTokens
+				if u.Speed == "fast" {
+					result.FastMode = true
+				}
 			}
 
 		case "content_block_delta":
@@ -90,19 +100,25 @@ func (a *anthropicMessages) ParseStream(events []SSEEvent) (*Result, error) {
 		case "message_delta":
 			var delta struct {
 				Usage struct {
-					OutputTokens int `json:"output_tokens"`
+					OutputTokens  int    `json:"output_tokens"`
+					Speed         string `json:"speed"`
+					ServerToolUse struct {
+						WebSearchRequests int `json:"web_search_requests"`
+					} `json:"server_tool_use"`
 				} `json:"usage"`
 			}
 			if json.Unmarshal(ev.Data, &delta) == nil {
 				result.OutputTokens = delta.Usage.OutputTokens
+				if delta.Usage.Speed == "fast" {
+					result.FastMode = true
+				}
+				if delta.Usage.ServerToolUse.WebSearchRequests > 0 {
+					result.WebSearchRequests = delta.Usage.ServerToolUse.WebSearchRequests
+				}
 			}
 		}
 	}
 
-	reconstructed, _ := json.Marshal(map[string]any{
-		"model":   result.Model,
-		"content": content.String(),
-	})
-	result.ResponseBody = reconstructed
+	result.ResponseBody = reconstructStreamBody(result.Model, content.String())
 	return &result, nil
 }

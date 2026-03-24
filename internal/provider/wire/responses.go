@@ -29,11 +29,13 @@ func (r *responsesFormat) Parse(body []byte) (*Result, error) {
 		return nil, err
 	}
 	return &Result{
-		Model:           resp.Model,
-		InputTokens:     resp.Usage.InputTokens,
-		OutputTokens:    resp.Usage.OutputTokens,
-		CacheReadTokens: resp.Usage.InputTokenDetails.CachedTokens,
-		ResponseBody:    body,
+		Model:             resp.Model,
+		InputTokens:       resp.Usage.InputTokens,
+		OutputTokens:      resp.Usage.OutputTokens,
+		CacheReadTokens:   resp.Usage.InputTokenDetails.CachedTokens,
+		AudioInputTokens:  resp.Usage.InputTokenDetails.AudioTokens,
+		AudioOutputTokens: resp.Usage.OutputTokenDetails.AudioTokens,
+		ResponseBody:      body,
 	}, nil
 }
 
@@ -59,19 +61,18 @@ func (r *responsesFormat) ParseStream(events []SSEEvent) (*Result, error) {
 				} `json:"response"`
 			}
 			if json.Unmarshal(ev.Data, &completed) == nil {
+				u := completed.Response.Usage
 				result.Model = completed.Response.Model
-				result.InputTokens = completed.Response.Usage.InputTokens
-				result.OutputTokens = completed.Response.Usage.OutputTokens
-				result.CacheReadTokens = completed.Response.Usage.InputTokenDetails.CachedTokens
+				result.InputTokens = u.InputTokens
+				result.OutputTokens = u.OutputTokens
+				result.CacheReadTokens = u.InputTokenDetails.CachedTokens
+				result.AudioInputTokens = u.InputTokenDetails.AudioTokens
+				result.AudioOutputTokens = u.OutputTokenDetails.AudioTokens
 			}
 		}
 	}
 
-	reconstructed, _ := json.Marshal(map[string]any{
-		"model":   result.Model,
-		"content": content.String(),
-	})
-	result.ResponseBody = reconstructed
+	result.ResponseBody = reconstructStreamBody(result.Model, content.String())
 	return &result, nil
 }
 
@@ -80,7 +81,11 @@ type responsesUsage struct {
 	OutputTokens      int `json:"output_tokens"`
 	InputTokenDetails struct {
 		CachedTokens int `json:"cached_tokens"`
+		AudioTokens  int `json:"audio_tokens"`
 	} `json:"input_token_details"`
+	OutputTokenDetails struct {
+		AudioTokens int `json:"audio_tokens"`
+	} `json:"output_token_details"`
 }
 
 type responsesResponse struct {

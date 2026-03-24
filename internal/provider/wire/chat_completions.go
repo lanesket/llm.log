@@ -48,33 +48,53 @@ func (f *ccFormat) ParseStream(events []SSEEvent) (*Result, error) {
 	return parseCCStream(events, f.mapUsage)
 }
 
+// ccUsage holds parsed token counts from a Chat Completions usage object.
+type ccUsage struct {
+	input, output, cacheRead, cacheWrite int
+	audioInput, audioOutput              int
+}
+
 // usageMapper extracts token counts from a raw usage JSON object.
 // Each wire format provides its own mapper to handle provider-specific field names.
 // Returns zeros for nil/invalid input — callers handle empty results.
-type usageMapper func(raw json.RawMessage) (input, output, cacheRead, cacheWrite int)
+type usageMapper func(raw json.RawMessage) ccUsage
 
 // openaiUsage maps the standard OpenAI usage fields.
-func openaiUsage(raw json.RawMessage) (input, output, cacheRead, cacheWrite int) {
+func openaiUsage(raw json.RawMessage) ccUsage {
 	var u struct {
 		PromptTokens        int `json:"prompt_tokens"`
 		CompletionTokens    int `json:"completion_tokens"`
 		PromptTokensDetails struct {
 			CachedTokens int `json:"cached_tokens"`
+			AudioTokens  int `json:"audio_tokens"`
 		} `json:"prompt_tokens_details"`
+		CompletionTokensDetails struct {
+			AudioTokens int `json:"audio_tokens"`
+		} `json:"completion_tokens_details"`
 	}
 	json.Unmarshal(raw, &u)
-	return u.PromptTokens, u.CompletionTokens, u.PromptTokensDetails.CachedTokens, 0
+	return ccUsage{
+		input:       u.PromptTokens,
+		output:      u.CompletionTokens,
+		cacheRead:   u.PromptTokensDetails.CachedTokens,
+		audioInput:  u.PromptTokensDetails.AudioTokens,
+		audioOutput: u.CompletionTokensDetails.AudioTokens,
+	}
 }
 
 // deepseekUsage maps DeepSeek's cache fields (prompt_cache_hit_tokens).
-func deepseekUsage(raw json.RawMessage) (input, output, cacheRead, cacheWrite int) {
+func deepseekUsage(raw json.RawMessage) ccUsage {
 	var u struct {
 		PromptTokens         int `json:"prompt_tokens"`
 		CompletionTokens     int `json:"completion_tokens"`
 		PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
 	}
 	json.Unmarshal(raw, &u)
-	return u.PromptTokens, u.CompletionTokens, u.PromptCacheHitTokens, 0
+	return ccUsage{
+		input:     u.PromptTokens,
+		output:    u.CompletionTokens,
+		cacheRead: u.PromptCacheHitTokens,
+	}
 }
 
 // parseCCResponse parses a non-streaming Chat Completions-style response.
@@ -86,14 +106,16 @@ func parseCCResponse(body []byte, mapUsage usageMapper) (*Result, error) {
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, err
 	}
-	input, output, cacheRead, cacheWrite := mapUsage(resp.Usage)
+	u := mapUsage(resp.Usage)
 	return &Result{
-		Model:            resp.Model,
-		InputTokens:      input,
-		OutputTokens:     output,
-		CacheReadTokens:  cacheRead,
-		CacheWriteTokens: cacheWrite,
-		ResponseBody:     body,
+		Model:             resp.Model,
+		InputTokens:       u.input,
+		OutputTokens:      u.output,
+		CacheReadTokens:   u.cacheRead,
+		CacheWriteTokens:  u.cacheWrite,
+		AudioInputTokens:  u.audioInput,
+		AudioOutputTokens: u.audioOutput,
+		ResponseBody:      body,
 	}, nil
 }
 
@@ -128,21 +150,19 @@ func parseCCStream(events []SSEEvent, mapUsage usageMapper) (*Result, error) {
 			content.WriteString(chunk.Choices[0].Delta.Content)
 		}
 		if len(chunk.Usage) > 0 {
-			input, output, cacheRead, cacheWrite := mapUsage(chunk.Usage)
-			if input > 0 || output > 0 {
-				result.InputTokens = input
-				result.OutputTokens = output
-				result.CacheReadTokens = cacheRead
-				result.CacheWriteTokens = cacheWrite
+			u := mapUsage(chunk.Usage)
+			if u.input > 0 || u.output > 0 {
+				result.InputTokens = u.input
+				result.OutputTokens = u.output
+				result.CacheReadTokens = u.cacheRead
+				result.CacheWriteTokens = u.cacheWrite
+				result.AudioInputTokens = u.audioInput
+				result.AudioOutputTokens = u.audioOutput
 			}
 		}
 	}
 
-	reconstructed, _ := json.Marshal(map[string]any{
-		"model":   result.Model,
-		"content": content.String(),
-	})
-	result.ResponseBody = reconstructed
+	result.ResponseBody = reconstructStreamBody(result.Model, content.String())
 	return &result, nil
 }
 

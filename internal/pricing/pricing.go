@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lanesket/llm.log/internal/provider/wire"
 )
 
 const (
@@ -21,10 +23,12 @@ const (
 
 // Price holds per-token pricing for a model.
 type Price struct {
-	InputPerMTok      float64
-	OutputPerMTok     float64
-	CacheReadPerMTok  float64
-	CacheWritePerMTok float64
+	InputPerMTok       float64
+	OutputPerMTok      float64
+	CacheReadPerMTok   float64
+	CacheWritePerMTok  float64
+	AudioInputPerMTok  float64
+	AudioOutputPerMTok float64
 }
 
 // DB is the pricing database.
@@ -67,8 +71,14 @@ func (db *DB) Normalize(gateway, model string) string {
 	return vendor + "/" + bare
 }
 
+// webSearchCostPerRequest is the flat per-search cost for Anthropic web search.
+// Ref: https://platform.claude.com/docs/en/about-claude/pricing#web-search-tool
+const webSearchCostPerRequest = 0.01 // $10 per 1,000 searches
+
 // Cost calculates the cost for a request. Returns nil if model not found.
-func (db *DB) Cost(providerName, model string, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int) *float64 {
+// multiplier applies to all token costs (0 = none). cacheTTL1h switches
+// cache write rate from 1.25x to 2x input price (Anthropic 1-hour TTL).
+func (db *DB) Cost(providerName, model string, r *wire.Result, multiplier float64, cacheTTL1h bool) *float64 {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -78,11 +88,44 @@ func (db *DB) Cost(providerName, model string, inputTokens, outputTokens, cacheR
 	}
 	p := db.prices[key]
 
-	uncached := float64(max(0, inputTokens-cacheReadTokens-cacheWriteTokens))
-	cost := uncached*p.InputPerMTok/1_000_000 +
-		float64(outputTokens)*p.OutputPerMTok/1_000_000 +
-		float64(cacheReadTokens)*p.CacheReadPerMTok/1_000_000 +
-		float64(cacheWriteTokens)*p.CacheWritePerMTok/1_000_000
+	uncached := float64(max(0, r.InputTokens-r.CacheReadTokens-r.CacheWriteTokens))
+	textInput := uncached
+	textOutput := float64(r.OutputTokens)
+
+	// Separate audio tokens from text tokens (OpenAI audio models).
+	// Audio and cached tokens are disjoint subsets of prompt_tokens in OpenAI's API:
+	// prompt_tokens = text_tokens + audio_tokens, cached_tokens ⊆ prompt_tokens.
+	// When both are present, audio tokens reduce the uncached text portion.
+	// Ref: https://platform.openai.com/docs/guides/audio
+	if p.AudioInputPerMTok > 0 && r.AudioInputTokens > 0 {
+		textInput = max(0, uncached-float64(r.AudioInputTokens))
+	}
+	if p.AudioOutputPerMTok > 0 && r.AudioOutputTokens > 0 {
+		textOutput = max(0, float64(r.OutputTokens-r.AudioOutputTokens))
+	}
+
+	// Cache write rate: 1h TTL uses 2x input instead of default 1.25x.
+	// Ref: https://platform.claude.com/docs/en/about-claude/pricing#prompt-caching
+	cacheWriteRate := p.CacheWritePerMTok
+	if cacheTTL1h && p.InputPerMTok > 0 {
+		cacheWriteRate = p.InputPerMTok * 2.0
+	}
+
+	cost := textInput*p.InputPerMTok/1_000_000 +
+		textOutput*p.OutputPerMTok/1_000_000 +
+		float64(r.CacheReadTokens)*p.CacheReadPerMTok/1_000_000 +
+		float64(r.CacheWriteTokens)*cacheWriteRate/1_000_000 +
+		float64(r.AudioInputTokens)*p.AudioInputPerMTok/1_000_000 +
+		float64(r.AudioOutputTokens)*p.AudioOutputPerMTok/1_000_000
+
+	// Apply request-level price multiplier. 1.0 = identity (no change).
+	if multiplier != 1.0 {
+		cost *= multiplier
+	}
+
+	// Web search is a flat per-request fee, not affected by token multipliers.
+	cost += float64(r.WebSearchRequests) * webSearchCostPerRequest
+
 	return &cost
 }
 
@@ -158,6 +201,8 @@ func subset(sub, super map[string]bool) bool {
 	return true
 }
 
+// httpClient bypasses system proxy to avoid routing through our own MITM proxy,
+// which would cause an infinite loop when fetching pricing data.
 var httpClient = &http.Client{
 	Timeout: 15 * time.Second,
 	Transport: &http.Transport{
@@ -246,10 +291,12 @@ func (db *DB) parse(data []byte) error {
 			Models []struct {
 				ID     string `json:"id"`
 				Prices struct {
-					InputMTok      json.RawMessage `json:"input_mtok"`
-					OutputMTok     json.RawMessage `json:"output_mtok"`
-					CacheReadMTok  json.RawMessage `json:"cache_read_mtok"`
-					CacheWriteMTok json.RawMessage `json:"cache_write_mtok"`
+					InputMTok       json.RawMessage `json:"input_mtok"`
+					OutputMTok      json.RawMessage `json:"output_mtok"`
+					CacheReadMTok   json.RawMessage `json:"cache_read_mtok"`
+					CacheWriteMTok  json.RawMessage `json:"cache_write_mtok"`
+					InputAudioMTok  json.RawMessage `json:"input_audio_mtok"`
+					OutputAudioMTok json.RawMessage `json:"output_audio_mtok"`
 				} `json:"prices"`
 			} `json:"models"`
 		}
@@ -264,10 +311,12 @@ func (db *DB) parse(data []byte) error {
 				continue
 			}
 			db.prices[m.ID] = &Price{
-				InputPerMTok:      input,
-				OutputPerMTok:     output,
-				CacheReadPerMTok:  extractPrice(m.Prices.CacheReadMTok),
-				CacheWritePerMTok: extractPrice(m.Prices.CacheWriteMTok),
+				InputPerMTok:       input,
+				OutputPerMTok:      output,
+				CacheReadPerMTok:   extractPrice(m.Prices.CacheReadMTok),
+				CacheWritePerMTok:  extractPrice(m.Prices.CacheWriteMTok),
+				AudioInputPerMTok:  extractPrice(m.Prices.InputAudioMTok),
+				AudioOutputPerMTok: extractPrice(m.Prices.OutputAudioMTok),
 			}
 		}
 	}

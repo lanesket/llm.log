@@ -44,7 +44,7 @@ A local proxy that sits between your apps and LLM APIs. It intercepts requests, 
 - **Zero code changes** — works via `HTTPS_PROXY`, picked up by most apps automatically
 - **All major providers** — OpenAI, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, and [more](#providers-and-formats)
 - **All API formats** — Chat Completions, Responses API, Anthropic Messages
-- **Real costs** — auto-updated pricing for 780+ models, cache token breakdowns
+- **Real costs** — auto-updated pricing for 800+ models, cache token breakdowns
 - **Claude Code aware** — on a subscription? see what you'd pay without it. On API keys? see your actual spend
 - **Web UI** — browser-based dashboard with real-time charts, analytics, and detailed request inspection
 - **TUI dashboard** — terminal-based overview, charts, cost breakdown, request inspector

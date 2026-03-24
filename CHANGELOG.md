@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.1] — 2026-03-24
+
+### Added
+- **OpenAI audio token pricing** — audio input/output tokens (GPT-4o audio) are now separated from text tokens and priced at their own rates ($100/$200 per MTok)
+- **Anthropic web search costs** — `server_tool_use.web_search_requests` parsed from responses, billed at $10/1K searches
+- **Anthropic fast mode (6x)** — detected from `usage.speed` in API response, applies 6x multiplier to all token costs
+- **Anthropic data residency (1.1x)** — detected from `inference_geo: "us"` in request body
+- **Anthropic 1-hour cache TTL** — detected from `cache_control.ttl: "1h"` in request (system, messages, tools), uses 2x input price instead of default 1.25x
+- **Integration tests** — real API tests against OpenAI (Chat Completions, Responses, streaming, cache hits) and Anthropic via OpenRouter (Messages, streaming, cache write/read)
+- **E2E pricing tests** — verified against live genai-prices data for all pricing scenarios
+
+### Changed
+- `Cost()` now takes `*wire.Result` + explicit `multiplier`/`cacheTTL1h` params instead of 6 separate int args
+- `wire.Result` is purely response data — request-level modifiers are passed separately through the proxy layer
+- Stream body reconstruction extracted to shared `reconstructStreamBody()` helper
+
+### Fixed
+- **Fast mode detection in streaming** — `usage.speed` is now read from both `message_start` and `message_delta` SSE events
+- **Cache TTL false positives** — `"1h"` in message content no longer triggers 1h pricing; proper JSON parsing of `cache_control.ttl` fields
+
 ## [0.4.0] — 2026-03-22
 
 ### Added

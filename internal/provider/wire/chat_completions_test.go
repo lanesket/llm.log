@@ -222,3 +222,51 @@ func TestChatCompletions_ParseStream(t *testing.T) {
 		t.Errorf("content = %q", body["content"])
 	}
 }
+
+func TestChatCompletions_Parse_AudioTokens(t *testing.T) {
+	body := []byte(`{
+		"model": "gpt-4o-audio-preview",
+		"usage": {
+			"prompt_tokens": 1000,
+			"completion_tokens": 500,
+			"prompt_tokens_details": {"cached_tokens": 0, "audio_tokens": 800, "text_tokens": 200},
+			"completion_tokens_details": {"audio_tokens": 300, "text_tokens": 200}
+		}
+	}`)
+
+	r, err := ChatCompletions.Parse(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.InputTokens != 1000 {
+		t.Errorf("input = %d, want 1000", r.InputTokens)
+	}
+	if r.OutputTokens != 500 {
+		t.Errorf("output = %d, want 500", r.OutputTokens)
+	}
+	if r.AudioInputTokens != 800 {
+		t.Errorf("audio input = %d, want 800", r.AudioInputTokens)
+	}
+	if r.AudioOutputTokens != 300 {
+		t.Errorf("audio output = %d, want 300", r.AudioOutputTokens)
+	}
+}
+
+func TestChatCompletions_ParseStream_AudioTokens(t *testing.T) {
+	events := []SSEEvent{
+		{Data: []byte(`{"model":"gpt-4o-audio-preview","choices":[{"delta":{"content":"Hi"}}]}`)},
+		{Data: []byte(`{"model":"gpt-4o-audio-preview","choices":[],"usage":{"prompt_tokens":100,"completion_tokens":50,"prompt_tokens_details":{"audio_tokens":60},"completion_tokens_details":{"audio_tokens":30}}}`)},
+		{Data: []byte("[DONE]")},
+	}
+
+	r, err := ChatCompletions.ParseStream(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.AudioInputTokens != 60 {
+		t.Errorf("audio input = %d, want 60", r.AudioInputTokens)
+	}
+	if r.AudioOutputTokens != 30 {
+		t.Errorf("audio output = %d, want 30", r.AudioOutputTokens)
+	}
+}
