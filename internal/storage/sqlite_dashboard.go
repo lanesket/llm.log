@@ -112,7 +112,7 @@ func (s *SQLite) queryBreakdown(groupCol, providerExpr, fromStr, toStr string) (
 	}
 	defer rows.Close()
 
-	var result []BreakdownRow
+	result := make([]BreakdownRow, 0)
 	for rows.Next() {
 		var row BreakdownRow
 		if err := rows.Scan(&row.Name, &row.Provider, &row.Requests, &row.TotalCost, &row.Tokens); err != nil {
@@ -143,7 +143,7 @@ func (s *SQLite) queryChart(from, to time.Time, fromStr, toStr string) ([]ChartP
 	}
 	defer rows.Close()
 
-	var result []ChartPoint
+	result := make([]ChartPoint, 0)
 	for rows.Next() {
 		var bucket string
 		var cp ChartPoint

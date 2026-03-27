@@ -110,7 +110,7 @@ func (s *SQLite) analyticsOverTime(fromStr, toStr, bucketExpr, parseLayout strin
 	}
 	defer rows.Close()
 
-	var result []AnalyticsPoint
+	result := make([]AnalyticsPoint, 0)
 	for rows.Next() {
 		var bucket string
 		var pt AnalyticsPoint
@@ -143,7 +143,7 @@ func (s *SQLite) analyticsByProvider(fromStr, toStr, bucketExpr, parseLayout str
 	}
 	defer rows.Close()
 
-	var result []ProviderTimePoint
+	result := make([]ProviderTimePoint, 0)
 	for rows.Next() {
 		var bucket string
 		var pt ProviderTimePoint
@@ -174,7 +174,7 @@ func (s *SQLite) analyticsTopModels(fromStr, toStr string) ([]ModelStat, error) 
 	}
 	defer rows.Close()
 
-	var result []ModelStat
+	result := make([]ModelStat, 0)
 	for rows.Next() {
 		var m ModelStat
 		var avgDur float64
@@ -202,7 +202,7 @@ func (s *SQLite) analyticsTopExpensive(fromStr, toStr string) ([]ExpensiveReques
 	}
 	defer rows.Close()
 
-	var result []ExpensiveRequest
+	result := make([]ExpensiveRequest, 0)
 	for rows.Next() {
 		var e ExpensiveRequest
 		var ts string
@@ -276,7 +276,7 @@ func (s *SQLite) analyticsHeatmap(fromStr, toStr string) ([]HeatmapEntry, error)
 	}
 	defer rows.Close()
 
-	var result []HeatmapEntry
+	result := make([]HeatmapEntry, 0)
 	for rows.Next() {
 		var h HeatmapEntry
 		if err := rows.Scan(&h.DayOfWeek, &h.Hour, &h.Requests, &h.Cost); err != nil {
@@ -302,7 +302,7 @@ func (s *SQLite) analyticsAvgTokens(fromStr, toStr string) ([]AvgTokensRow, erro
 	}
 	defer rows.Close()
 
-	var result []AvgTokensRow
+	result := make([]AvgTokensRow, 0)
 	for rows.Next() {
 		var r AvgTokensRow
 		if err := rows.Scan(&r.Model, &r.AvgInput, &r.AvgOutput); err != nil {
@@ -417,7 +417,7 @@ func (s *SQLite) Filters(from, to time.Time) (*FilterOptions, error) {
 		}
 		defer rows.Close()
 
-		var result []string
+		result := make([]string, 0)
 		for rows.Next() {
 			var v string
 			if err := rows.Scan(&v); err != nil {

@@ -276,7 +276,7 @@ func (s *SQLite) Sources(from, to time.Time) ([]string, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []string
+	result := make([]string, 0)
 	for rows.Next() {
 		var s string
 		if err := rows.Scan(&s); err != nil {

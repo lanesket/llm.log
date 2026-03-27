@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.2] — 2026-03-27
+
+### Fixed
+- **Empty database crash** — dashboard and analytics pages showed black screen when no data existed; nil slices now serialize as `[]` instead of JSON `null`
+
 ## [0.4.1] — 2026-03-24
 
 ### Added
