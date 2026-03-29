@@ -2,77 +2,216 @@ package dashboard
 
 import (
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/guptarohit/asciigraph"
 	"github.com/lanesket/llm.log/internal/format"
+	"github.com/lanesket/llm.log/internal/storage"
 )
-
-var sparkBlocks = []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
-
-// sparkline renders a sparkline from values, resampled to fit width.
-func sparkline(values []float64, width int) string {
-	if len(values) == 0 {
-		return strings.Repeat("▁", width)
-	}
-
-	data := values
-	if len(data) > width {
-		data = resample(data, width)
-	}
-
-	maxVal := 0.0
-	for _, v := range data {
-		if v > maxVal {
-			maxVal = v
-		}
-	}
-	if maxVal == 0 {
-		return strings.Repeat("▁", len(data))
-	}
-
-	var b strings.Builder
-	for _, v := range data {
-		idx := int(v / maxVal * float64(len(sparkBlocks)-1))
-		if idx >= len(sparkBlocks) {
-			idx = len(sparkBlocks) - 1
-		}
-		b.WriteRune(sparkBlocks[idx])
-	}
-	return b.String()
-}
-
-func resample(values []float64, n int) []float64 {
-	result := make([]float64, n)
-	step := float64(len(values)) / float64(n)
-	for i := range n {
-		idx := int(math.Round(float64(i) * step))
-		if idx >= len(values) {
-			idx = len(values) - 1
-		}
-		result[i] = values[idx]
-	}
-	return result
-}
 
 // hbar renders a horizontal bar with a visible track showing the max boundary.
 func hbar(value, maxVal float64, width int, color lipgloss.Color) string {
 	if maxVal == 0 || width <= 0 || value == 0 {
 		return ""
 	}
-	filled := int(value / maxVal * float64(width))
-	if filled < 1 {
-		filled = 1
-	}
+	filled := max(1, int(value/maxVal*float64(width)))
 	track := width - filled
 	bar := lipgloss.NewStyle().Foreground(color).Render(strings.Repeat("█", filled))
 	if track > 0 {
 		bar += lipgloss.NewStyle().Foreground(lipgloss.Color("#374151")).Render(strings.Repeat("░", track))
 	}
 	return bar
+}
+
+// heatmapGrid holds computed grid geometry so the caller can map cursor/mouse to dates.
+type heatmapGrid struct {
+	StartMon   time.Time
+	TotalWeeks int
+	CellW      int // chars per cell column (including gap)
+	LabelW     int // chars for day label column
+}
+
+func (g *heatmapGrid) CellToDate(col, row int) time.Time {
+	return g.StartMon.AddDate(0, 0, col*7+row)
+}
+
+// computeHeatmapGrid returns grid metadata without rendering the full heatmap string.
+func computeHeatmapGrid(dailyStats []storage.StatRow, width int) *heatmapGrid {
+	if len(dailyStats) == 0 {
+		return nil
+	}
+	var earliest, latest time.Time
+	for _, s := range dailyStats {
+		t, err := time.Parse("2006-01-02", s.Key)
+		if err != nil {
+			continue
+		}
+		if earliest.IsZero() || t.Before(earliest) {
+			earliest = t
+		}
+		if t.After(latest) {
+			latest = t
+		}
+	}
+	if earliest.IsZero() {
+		return nil
+	}
+
+	startMon := earliest.AddDate(0, 0, -((int(earliest.Weekday()) + 6) % 7))
+	endSun := latest.AddDate(0, 0, (7-int(latest.Weekday()))%7)
+	totalWeeks := int(endSun.Sub(startMon).Hours()/24)/7 + 1
+
+	cellW := 3
+	labelW := 4
+	maxWeeks := max(1, (width-labelW)/cellW)
+	if totalWeeks > maxWeeks {
+		startMon = endSun.AddDate(0, 0, -(maxWeeks*7)+1)
+		startMon = startMon.AddDate(0, 0, -((int(startMon.Weekday()) + 6) % 7))
+		totalWeeks = maxWeeks
+	}
+	return &heatmapGrid{StartMon: startMon, TotalWeeks: totalWeeks, CellW: cellW, LabelW: labelW}
+}
+
+// Pre-rendered cells per intensity level.
+var (
+	heatmapCells      [5]string
+	heatmapCursorCell [5]string
+)
+
+func init() {
+	heatmapCells[0] = lipgloss.NewStyle().Foreground(heatmapColors[0]).Render("··")
+	heatmapCursorCell[0] = lipgloss.NewStyle().Foreground(heatmapColors[0]).Reverse(true).Render("··")
+	for i := 1; i < len(heatmapColors); i++ {
+		heatmapCells[i] = lipgloss.NewStyle().Foreground(heatmapColors[i]).Render("██")
+		heatmapCursorCell[i] = lipgloss.NewStyle().Foreground(heatmapColors[i]).Reverse(true).Render("██")
+	}
+}
+
+// heatmap renders a GitHub-style contribution heatmap from daily stats.
+// cursorRow/cursorCol < 0 means no cursor highlight.
+func heatmap(dailyStats []storage.StatRow, width, cursorRow, cursorCol int) (string, *heatmapGrid) {
+	grid := computeHeatmapGrid(dailyStats, width)
+	if grid == nil {
+		return "", nil
+	}
+
+	startMon := grid.StartMon
+	totalWeeks := grid.TotalWeeks
+	cellW := grid.CellW
+	labelW := grid.LabelW
+
+	// Build cost lookup and find max in a single pass.
+	costByDate := make(map[string]float64, len(dailyStats))
+	var maxCost float64
+	for _, s := range dailyStats {
+		costByDate[s.Key] = s.TotalCost
+		if s.TotalCost > maxCost {
+			maxCost = s.TotalCost
+		}
+	}
+
+	// Intensity level: 0-4 based on cost relative to max.
+	level := func(cost float64) int {
+		if cost == 0 || maxCost == 0 {
+			return 0
+		}
+		ratio := cost / maxCost
+		switch {
+		case ratio >= 0.75:
+			return 4
+		case ratio >= 0.50:
+			return 3
+		case ratio >= 0.25:
+			return 2
+		default:
+			return 1
+		}
+	}
+
+	// Build month label positions: which weeks start a new month.
+	type monthLabel struct {
+		week  int
+		label string
+	}
+	var months []monthLabel
+	prevMonth := time.Month(0)
+	monthWeekCount := make(map[time.Month]int)
+	for w := range totalWeeks {
+		weekStart := startMon.AddDate(0, 0, w*7)
+		mon := weekStart.Month()
+		monthWeekCount[mon]++
+		if mon != prevMonth {
+			months = append(months, monthLabel{week: w, label: weekStart.Format("Jan")})
+			prevMonth = mon
+		}
+	}
+
+	// Render month labels into a buffer, then convert to string.
+	rowLen := totalWeeks * cellW
+	buf := make([]byte, rowLen)
+	for i := range buf {
+		buf[i] = ' '
+	}
+	prevEnd := 0
+	for _, ml := range months {
+		pos := ml.week * cellW
+		label := ml.label
+		// Skip if it would overlap with previous label (need 1+ char gap).
+		if pos < prevEnd+1 && prevEnd > 0 {
+			continue
+		}
+		// Skip months that occupy only 1 week (padding from week alignment).
+		weekStart := startMon.AddDate(0, 0, ml.week*7)
+		if monthWeekCount[weekStart.Month()] < 2 && len(months) > 1 {
+			continue
+		}
+		if pos+len(label) <= rowLen {
+			copy(buf[pos:], label)
+			prevEnd = pos + len(label)
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(strings.Repeat(" ", labelW))
+	b.WriteString(strings.TrimRight(string(buf), " "))
+	b.WriteString("\n")
+
+	// Render 7 day rows (Monday=0 .. Sunday=6).
+	dayLabels := [7]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+	for row := range 7 {
+		// Show label for Mon, Wed, Fri only (like GitHub).
+		if row%2 == 0 {
+			b.WriteString(fmt.Sprintf("%-4s", dayLabels[row]))
+		} else {
+			b.WriteString(strings.Repeat(" ", labelW))
+		}
+
+		for w := range totalWeeks {
+			d := startMon.AddDate(0, 0, w*7+row)
+			lvl := level(costByDate[d.Format("2006-01-02")])
+			if row == cursorRow && w == cursorCol {
+				b.WriteString(heatmapCursorCell[lvl])
+			} else {
+				b.WriteString(heatmapCells[lvl])
+			}
+			b.WriteString(" ")
+		}
+		b.WriteString("\n")
+	}
+
+	// Legend row — blank line for breathing room, then aligned with grid.
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat(" ", labelW))
+	b.WriteString(mutedStyle.Render("Less "))
+	for _, cell := range heatmapCells {
+		b.WriteString(cell)
+		b.WriteString(" ")
+	}
+	b.WriteString(mutedStyle.Render("More  │  Click on a day to see breakdown"))
+
+	return b.String(), grid
 }
 
 // ── Line chart (powered by asciigraph) ──

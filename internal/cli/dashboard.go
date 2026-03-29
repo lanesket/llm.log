@@ -28,6 +28,7 @@ var dashboardCmd = &cobra.Command{
 		p := tea.NewProgram(
 			dashboard.New(store, dir),
 			tea.WithAltScreen(),
+			tea.WithMouseCellMotion(),
 		)
 		if _, err := p.Run(); err != nil {
 			return fmt.Errorf("dashboard: %w", err)

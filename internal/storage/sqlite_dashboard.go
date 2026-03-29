@@ -59,6 +59,12 @@ func (s *SQLite) DashboardStats(from, to time.Time) (*DashboardData, error) {
 		return nil, fmt.Errorf("chart: %w", err)
 	}
 
+	// 5. Daily activity for contribution heatmap.
+	data.Activity, err = s.queryDailyActivity(fromStr, toStr)
+	if err != nil {
+		return nil, fmt.Errorf("activity: %w", err)
+	}
+
 	return data, nil
 }
 
@@ -155,6 +161,36 @@ func (s *SQLite) queryChart(from, to time.Time, fromStr, toStr string) ([]ChartP
 			return nil, fmt.Errorf("parse chart bucket %q: %w", bucket, err)
 		}
 		result = append(result, cp)
+	}
+	return result, rows.Err()
+}
+
+func (s *SQLite) queryDailyActivity(fromStr, toStr string) ([]DailyActivity, error) {
+	query := `
+		SELECT DATE(timestamp) AS day,
+			COUNT(*),
+			COALESCE(SUM(total_cost), 0)
+		FROM requests
+		WHERE 1=1`
+	var args []any
+	query, args = timeFilter(query, args, fromStr, toStr)
+	query += `
+		GROUP BY day
+		ORDER BY day ASC`
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("daily activity: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]DailyActivity, 0)
+	for rows.Next() {
+		var d DailyActivity
+		if err := rows.Scan(&d.Date, &d.Requests, &d.Cost); err != nil {
+			return nil, err
+		}
+		result = append(result, d)
 	}
 	return result, rows.Err()
 }

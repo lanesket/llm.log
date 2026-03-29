@@ -109,14 +109,22 @@ type ChartPoint struct {
 	Tokens    int64     `json:"tokens"`
 }
 
+// DailyActivity is one day's aggregated activity for the contribution heatmap.
+type DailyActivity struct {
+	Date     string  `json:"date"` // "2006-01-02"
+	Requests int     `json:"requests"`
+	Cost     float64 `json:"cost"`
+}
+
 // DashboardData holds all data needed to render the dashboard.
 type DashboardData struct {
-	Totals     Totals         `json:"totals"`
-	PrevTotals *Totals        `json:"prev_totals"`
-	ByProvider []BreakdownRow `json:"by_provider"`
-	ByModel    []BreakdownRow `json:"by_model"`
-	BySource   []BreakdownRow `json:"by_source"`
-	Chart      []ChartPoint   `json:"chart"`
+	Totals     Totals          `json:"totals"`
+	PrevTotals *Totals         `json:"prev_totals"`
+	ByProvider []BreakdownRow  `json:"by_provider"`
+	ByModel    []BreakdownRow  `json:"by_model"`
+	BySource   []BreakdownRow  `json:"by_source"`
+	Chart      []ChartPoint    `json:"chart"`
+	Activity   []DailyActivity `json:"activity"`
 }
 
 // AnalyticsPoint is a time-bucketed aggregation point.

@@ -1368,3 +1368,55 @@ func TestFilters_DistinctValues(t *testing.T) {
 		t.Fatalf("sources = %d, want 3", len(opts.Sources))
 	}
 }
+
+func TestDashboardStats_Activity(t *testing.T) {
+	store := testDB(t)
+	base := time.Date(2026, 3, 25, 12, 0, 0, 0, time.UTC) // Wednesday
+
+	cost1 := 0.50
+	cost2 := 0.30
+	// Two requests on day 1, one request on day 2
+	store.Save(&Record{
+		Timestamp: base, Provider: "anthropic", Model: "claude",
+		InputTokens: 100, OutputTokens: 50, TotalCost: &cost1,
+	})
+	store.Save(&Record{
+		Timestamp: base.Add(2 * time.Hour), Provider: "anthropic", Model: "claude",
+		InputTokens: 200, OutputTokens: 100, TotalCost: &cost2,
+	})
+	cost3 := 1.00
+	store.Save(&Record{
+		Timestamp: base.AddDate(0, 0, 1), Provider: "openai", Model: "gpt-4",
+		InputTokens: 300, OutputTokens: 150, TotalCost: &cost3,
+	})
+
+	from := base.Add(-time.Hour)
+	to := base.AddDate(0, 0, 2)
+	data, err := store.DashboardStats(from, to)
+	if err != nil {
+		t.Fatalf("DashboardStats: %v", err)
+	}
+
+	if len(data.Activity) != 2 {
+		t.Fatalf("activity entries = %d, want 2", len(data.Activity))
+	}
+
+	// Should be sorted by date ascending.
+	if data.Activity[0].Date != "2026-03-25" {
+		t.Errorf("first date = %s, want 2026-03-25", data.Activity[0].Date)
+	}
+	if data.Activity[0].Requests != 2 {
+		t.Errorf("first day requests = %d, want 2", data.Activity[0].Requests)
+	}
+	wantCost := 0.80
+	if diff := data.Activity[0].Cost - wantCost; diff > 0.001 || diff < -0.001 {
+		t.Errorf("first day cost = %.4f, want %.4f", data.Activity[0].Cost, wantCost)
+	}
+
+	if data.Activity[1].Date != "2026-03-26" {
+		t.Errorf("second date = %s, want 2026-03-26", data.Activity[1].Date)
+	}
+	if data.Activity[1].Requests != 1 {
+		t.Errorf("second day requests = %d, want 1", data.Activity[1].Requests)
+	}
+}

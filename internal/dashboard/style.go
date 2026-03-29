@@ -56,6 +56,15 @@ var (
 	sourceTagCopilotStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#1E1E2E")).
 				Background(lipgloss.Color("#8B5CF6")) // purple — GitHub Copilot
+
+	// Heatmap intensity levels (0 = empty, 1-4 = increasing activity).
+	heatmapColors = [5]lipgloss.Color{
+		lipgloss.Color("#1F2937"), // level 0: no data (dark gray)
+		lipgloss.Color("#4C1D95"), // level 1: low
+		lipgloss.Color("#6D28D9"), // level 2: medium
+		lipgloss.Color("#7C3AED"), // level 3: high (matches colorPrimary)
+		lipgloss.Color("#A78BFA"), // level 4: max
+	}
 )
 
 func providerColor(name string) lipgloss.Color {

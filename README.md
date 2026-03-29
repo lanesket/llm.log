@@ -103,7 +103,7 @@ llm-log dashboard   # or: llm-log dash
 
 | Tab | What it shows |
 |-----|---------------|
-| **Overview** | Total spend, request count, cache hit rate, sparkline, top models |
+| **Overview** | Total spend, request count, cache hit rate, contribution heatmap, top models |
 | **Chart** | Cumulative cost, requests, tokens, cache hit rate over time |
 | **Cost** | Breakdown by provider/model with percentages, latency, bars |
 | **Requests** | Browse requests, inspect full prompt/response JSON |

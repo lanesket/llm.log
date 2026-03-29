@@ -57,6 +57,14 @@ type Model struct {
 
 	daemonRunning bool
 
+	// Heatmap cursor
+	hmRow      int               // 0-6 (Mon-Sun)
+	hmCol      int               // 0..totalWeeks-1
+	hmGrid     *heatmapGrid      // computed grid metadata
+	hmDay      []storage.StatRow // model breakdown for selected day
+	periodFrom time.Time         // cached from loadData for loadHmDay
+	periodTo   time.Time
+
 	requests     []storage.Record
 	reqCursor    int
 	reqOffset    int
@@ -94,6 +102,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadData()
 		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
+	case tea.MouseMsg:
+		switch {
+		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft:
+			if msg.Y == 0 {
+				m.handleTabClick(msg.X)
+			} else if m.activeTab == tabOverview && m.hmGrid != nil {
+				m.handleHeatmapClick(msg.X, msg.Y)
+			} else if m.activeTab == tabRequests && m.reqDetail == nil {
+				m.handleRequestClick(msg.Y)
+			}
+		case msg.Button == tea.MouseButtonWheelUp:
+			if m.activeTab == tabRequests && m.reqDetail != nil {
+				m.viewport, _ = m.viewport.Update(msg)
+			} else {
+				m.navigateUp()
+			}
+		case msg.Button == tea.MouseButtonWheelDown:
+			if m.activeTab == tabRequests && m.reqDetail != nil {
+				m.viewport, _ = m.viewport.Update(msg)
+			} else {
+				m.navigateDown()
+			}
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		if msg.String() == "q" || msg.String() == "ctrl+c" {
 			return m, tea.Quit
@@ -109,10 +142,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "?":
 			m.showHelp = true
-		case "tab", "l", "right":
+		case "tab":
 			m.switchTab((m.activeTab + 1) % tabCount)
-		case "shift+tab", "h", "left":
+		case "shift+tab":
 			m.switchTab((m.activeTab - 1 + tabCount) % tabCount)
+		case "l", "right":
+			if m.activeTab == tabOverview && m.hmGrid != nil {
+				m.hmCol = min(m.hmCol+1, m.hmGrid.TotalWeeks-1)
+				m.loadHmDay()
+			} else {
+				m.switchTab((m.activeTab + 1) % tabCount)
+			}
+		case "h", "left":
+			if m.activeTab == tabOverview && m.hmGrid != nil {
+				m.hmCol = max(m.hmCol-1, 0)
+				m.loadHmDay()
+			} else {
+				m.switchTab((m.activeTab - 1 + tabCount) % tabCount)
+			}
 		case "1", "2", "3", "4":
 			m.switchTab(tab(msg.String()[0] - '1'))
 		case "p":
@@ -135,15 +182,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "e":
 			return m.exportCurrent()
 		case "j", "down":
-			if m.activeTab == tabRequests && m.reqCursor < len(m.requests)-1 {
-				m.reqCursor++
-				m.adjustReqScroll()
-			}
+			m.navigateDown()
 		case "k", "up":
-			if m.activeTab == tabRequests && m.reqCursor > 0 {
-				m.reqCursor--
-				m.adjustReqScroll()
-			}
+			m.navigateUp()
 		case "enter":
 			if m.activeTab == tabRequests && len(m.requests) > 0 {
 				if rec, err := m.store.Get(m.requests[m.reqCursor].ID); err == nil {
@@ -330,10 +371,12 @@ func (m Model) renderHelp() string {
 		groupLabel = "provider"
 	}
 	switch m.activeTab {
+	case tabOverview:
+		nav += " · hjkl/←→↑↓: navigate"
 	case tabCost:
 		nav += fmt.Sprintf(" · m: by %s", groupLabel)
 	case tabRequests:
-		nav += " · ↑↓: navigate · enter: detail"
+		nav += " · ↑↓: navigate · enter/click: detail"
 	}
 	nav += " · e: export · p: period · s: source · f: provider · ?: help · q: quit"
 
@@ -434,15 +477,31 @@ func (m Model) viewOverview() string {
 		summary += "\n  " + strings.Join(extras, "  ·  ")
 	}
 
-	// Sparkline — only when we have 2+ data points
-	if len(m.dailyStats) > 1 {
-		var costs []float64
-		for _, d := range m.dailyStats {
-			costs = append(costs, d.TotalCost)
+	// Contribution heatmap with cursor
+	if len(m.dailyStats) > 0 {
+		hm, _ := heatmap(m.dailyStats, m.width-12, m.hmRow, m.hmCol)
+		summary += "\n\n" + hm
+
+		// Selected day breakdown
+		if m.hmGrid != nil {
+			d := m.hmGrid.CellToDate(m.hmCol, m.hmRow)
+			dateStr := d.Format("Mon, Jan 2")
+			if len(m.hmDay) > 0 {
+				var dayCost float64
+				for _, s := range m.hmDay {
+					dayCost += s.TotalCost
+				}
+				summary += "\n\n  " + brightStyle.Render(dateStr) + "  " + format.Cost(dayCost)
+				for _, s := range m.hmDay[:min(len(m.hmDay), 5)] {
+					vendor, name := splitModel(s.Key)
+					dot := lipgloss.NewStyle().Foreground(providerColor(vendor)).Render("●")
+					summary += fmt.Sprintf("\n  %s %-20s %4d reqs  %s",
+						dot, format.Truncate(name, 20), s.Requests, format.Cost(s.TotalCost))
+				}
+			} else {
+				summary += "\n\n  " + brightStyle.Render(dateStr) + "  " + mutedStyle.Render("no activity")
+			}
 		}
-		spark := lipgloss.NewStyle().Foreground(colorPrimary).
-			Render(sparkline(costs, min(m.width-8, 60)))
-		summary += "\n\n  " + spark + mutedStyle.Render("  daily cost")
 	}
 
 	summaryBox := boxStyle.Width(m.width - 6).Render(summary)
@@ -853,7 +912,6 @@ func (m Model) viewHelp() string {
 		{"Global", []struct{ key, desc string }{
 			{"1-4", "Jump to tab"},
 			{"tab / shift+tab", "Next / prev tab"},
-			{"h l / ← →", "Prev / next tab"},
 			{"p", "Cycle period"},
 			{"s", "Cycle source filter"},
 			{"f", "Cycle provider filter"},
@@ -861,16 +919,22 @@ func (m Model) viewHelp() string {
 			{"?", "Toggle help"},
 			{"q / ctrl+c", "Quit"},
 		}},
+		{"Overview", []struct{ key, desc string }{
+			{"h j k l / ← → ↑ ↓", "Navigate heatmap"},
+			{"click", "Select day"},
+		}},
 		{"Cost", []struct{ key, desc string }{
 			{"m", "Toggle provider / model"},
 		}},
 		{"Requests", []struct{ key, desc string }{
-			{"↑↓ / j k", "Navigate list"},
-			{"enter", "View detail"},
+			{"↑ ↓ / j k / scroll", "Navigate list"},
+			{"enter / click×2", "View detail"},
+			{"click", "Select request"},
 		}},
 		{"Detail View", []struct{ key, desc string }{
 			{"c / p / r", "Copy all / prompt / response"},
 			{"esc / backspace", "Back"},
+			{"scroll", "Scroll content"},
 		}},
 	}
 
@@ -889,12 +953,142 @@ func (m Model) viewHelp() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
+func (m *Model) navigateUp() {
+	switch m.activeTab {
+	case tabOverview:
+		if m.hmGrid != nil {
+			m.hmRow = max(m.hmRow-1, 0)
+			m.loadHmDay()
+		}
+	case tabRequests:
+		if m.reqCursor > 0 {
+			m.reqCursor--
+			m.adjustReqScroll()
+		}
+	}
+}
+
+func (m *Model) navigateDown() {
+	switch m.activeTab {
+	case tabOverview:
+		if m.hmGrid != nil {
+			m.hmRow = min(m.hmRow+1, 6)
+			m.loadHmDay()
+		}
+	case tabRequests:
+		if m.reqCursor < len(m.requests)-1 {
+			m.reqCursor++
+			m.adjustReqScroll()
+		}
+	}
+}
+
+func (m *Model) handleTabClick(x int) {
+	rendered := m.renderTabBar()
+	for i := range tabNames {
+		label := fmt.Sprintf("%d·%s", i+1, tabNames[i])
+		if idx := strings.Index(rendered, label); idx >= 0 {
+			screenX := lipgloss.Width(rendered[:idx])
+			labelEnd := screenX + lipgloss.Width(label) + 2
+			if x >= screenX && x < labelEnd {
+				m.switchTab(tab(i))
+				return
+			}
+		}
+	}
+}
+
+func (m *Model) handleRequestClick(y int) {
+	// Find header row via marker text to get robust screen Y offset.
+	rendered := m.View()
+	lines := strings.Split(rendered, "\n")
+	headerY := -1
+	for i, line := range lines {
+		if strings.Contains(line, "TIME") && strings.Contains(line, "MODEL") {
+			headerY = i
+			break
+		}
+	}
+	if headerY < 0 {
+		return
+	}
+	idx := m.reqOffset + (y - headerY - 1)
+	if idx >= 0 && idx < len(m.requests) {
+		if idx == m.reqCursor {
+			if rec, err := m.store.Get(m.requests[idx].ID); err == nil {
+				m.reqDetail = rec
+				m.viewport = viewport.New(m.width-4, m.contentHeight())
+				m.viewport.SetContent(m.renderDetailContent(rec))
+			}
+		} else {
+			m.reqCursor = idx
+			m.adjustReqScroll()
+		}
+	}
+}
+
+func (m *Model) handleHeatmapClick(x, y int) {
+	if m.hmGrid == nil {
+		return
+	}
+	// Find "Mon " marker to get robust screen position.
+	// lipgloss.Width strips ANSI codes to convert byte offset → screen column.
+	rendered := m.View()
+	lines := strings.Split(rendered, "\n")
+	gridStartY := -1
+	gridStartX := -1
+	for i, line := range lines {
+		if idx := strings.Index(line, "Mon "); idx >= 0 {
+			gridStartY = i
+			gridStartX = lipgloss.Width(line[:idx]) + m.hmGrid.LabelW
+			break
+		}
+	}
+	if gridStartY < 0 {
+		return
+	}
+
+	row := y - gridStartY
+	col := (x - gridStartX) / m.hmGrid.CellW
+	if row >= 0 && row < 7 && col >= 0 && col < m.hmGrid.TotalWeeks {
+		m.hmRow = row
+		m.hmCol = col
+		m.loadHmDay()
+	}
+}
+
 // ── Data ──
+
+func (m *Model) loadHmDay() {
+	if m.hmGrid == nil {
+		m.hmDay = nil
+		return
+	}
+	d := m.hmGrid.CellToDate(m.hmCol, m.hmRow)
+	dayStart := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location()).UTC()
+	dayEnd := dayStart.AddDate(0, 0, 1)
+
+	// Don't show data outside the selected period (padding cells from week alignment).
+	if !m.periodFrom.IsZero() && dayStart.Before(m.periodFrom) {
+		m.hmDay = nil
+		return
+	}
+	if !m.periodTo.IsZero() && dayEnd.After(m.periodTo) {
+		m.hmDay = nil
+		return
+	}
+
+	m.hmDay, _ = m.store.Stats(storage.StatsFilter{
+		From: dayStart, To: dayEnd, GroupBy: "model",
+		Provider: m.providerFilter, Source: m.source,
+	})
+}
 
 func (m *Model) loadData() {
 	_, m.daemonRunning = daemon.IsRunning(m.dataDir)
 
 	from, to := storage.PeriodToTimeRange(m.period)
+	m.periodFrom, m.periodTo = from, to
 	m.availSources = m.buildAvailSources(from, to)
 	pf := m.providerFilter
 	f := func(groupBy string) []storage.StatRow {
@@ -914,6 +1108,18 @@ func (m *Model) loadData() {
 			})
 		} else {
 			m.prevProviderStats = nil
+		}
+		// Compute heatmap grid for cursor navigation (without rendering).
+		wasNil := m.hmGrid == nil
+		m.hmGrid = computeHeatmapGrid(m.dailyStats, m.width-12)
+		if m.hmGrid != nil {
+			if wasNil {
+				m.hmCol = m.hmGrid.TotalWeeks - 1
+				m.hmRow = (int(time.Now().Weekday()) + 6) % 7
+			}
+			m.hmCol = min(m.hmCol, m.hmGrid.TotalWeeks-1)
+			m.hmRow = min(m.hmRow, 6)
+			m.loadHmDay()
 		}
 	case tabChart:
 		m.requests, _ = m.store.Recent(5000, from, to, pf, m.source)

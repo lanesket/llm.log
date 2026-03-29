@@ -46,7 +46,7 @@ interface TimeRangeContextType {
 const TimeRangeContext = createContext<TimeRangeContextType | null>(null);
 
 export function TimeRangeProvider({ children }: { children: ReactNode }) {
-  const [preset, setPresetState] = useState<Preset>('today');
+  const [preset, setPresetState] = useState<Preset>('30d');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   // Tick counter to refresh non-custom ranges periodically

@@ -34,6 +34,12 @@ export interface ChartPoint {
   tokens: number;
 }
 
+export interface DailyActivity {
+  date: string;     // "2006-01-02"
+  requests: number;
+  cost: number;
+}
+
 export interface DashboardResponse {
   totals: Totals;
   prev_totals: Totals | null;
@@ -41,6 +47,7 @@ export interface DashboardResponse {
   by_model: BreakdownRow[];
   by_source: BreakdownRow[];
   chart: ChartPoint[];
+  activity: DailyActivity[];
 }
 
 // Requests

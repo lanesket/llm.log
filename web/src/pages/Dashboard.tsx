@@ -18,6 +18,7 @@ import { useAnimatedValue } from '@/hooks/useAnimatedValue';
 import { getProviderColor, CHART_COLORS } from '@/lib/constants';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { SectionHeading } from '@/components/SectionHeading';
+import { ContributionHeatmap } from '@/components/ContributionHeatmap';
 import { CopyableValue } from '@/components/CopyableValue';
 import { EmptyState } from '@/components/EmptyState';
 import { ProxyControl } from '@/components/ProxyControl';
@@ -216,6 +217,14 @@ export default function Dashboard() {
           delta={errorDelta}
         />
       </div>
+
+      {/* Contribution heatmap */}
+      {data.activity?.length > 0 && (
+        <div className="border-t border-[var(--color-separator)] pt-8 mt-8">
+          <SectionHeading as="h2">Activity</SectionHeading>
+          <ContributionHeatmap activity={data.activity} />
+        </div>
+      )}
 
       {/* Chart */}
       <div className="border-t border-[var(--color-separator)] pt-8 mt-8" data-chameleon-perch>
