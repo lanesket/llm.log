@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0] — 2026-03-30
+
+### Added
+- **Contribution heatmap** — GitHub-style activity heatmap on TUI Overview tab and Web UI Dashboard
+  - 5-level intensity scale (purple in TUI, emerald in Web UI matching the design system)
+  - Dot pattern (`··`) for empty days to show grid structure
+  - Month label overlap prevention for adjacent short months
+- **Interactive heatmap navigation** — arrow keys and `hjkl` to move between days, per-day model breakdown with top 5 models, request counts, and costs
+- **Mouse support** — click on heatmap cells, tab bar, and request rows; scroll wheel navigation in request list and detail view
+- **Daily activity API** — new `activity` field in `/api/dashboard` endpoint with per-calendar-day aggregation
+
+### Changed
+- Default Web UI time range changed from "today" to "30d"
+- TUI Overview: sparkline replaced by contribution heatmap
+- README repositioned as lightweight LLM observability tool — between enterprise platforms (Langfuse, Helicone) and basic log parsers (ccusage, tokscale)
+
+### Removed
+- `sparkline()`, `resample()`, `sparkBlocks` — replaced by heatmap
+
 ## [0.4.2] — 2026-03-27
 
 ### Fixed
