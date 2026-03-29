@@ -1,6 +1,6 @@
 <p align="center">
   <h1 align="center">llm.log</h1>
-  <p align="center">Track tokens, costs, and every prompt across all your LLM APIs.<br>Runs locally. Web + TUI dashboard, single binary, zero config.</p>
+  <p align="center">Lightweight LLM observability — costs, tokens, and full request/response capture.<br>Three commands to start. Local proxy, single binary, zero config.</p>
 </p>
 
 <p align="center">
@@ -17,6 +17,11 @@
 
 ---
 
+<p align="center">
+  <img src="assets/demo.gif" alt="llm.log TUI dashboard" width="700"><br>
+  <sub>TUI — <code>llm-log dash</code></sub>
+</p>
+
 <table>
   <tr>
     <td><img src="assets/web-dash.png" alt="Dashboard" width="400"></td>
@@ -32,24 +37,21 @@
   <sub>Web UI — <code>llm-log ui</code></sub>
 </p>
 
-<p align="center">
-  <img src="assets/demo.gif" alt="llm.log TUI dashboard" width="600"><br>
-  <sub>TUI — <code>llm-log dash</code></sub>
-</p>
-
 ## What is llm.log?
 
-A local proxy that sits between your apps and LLM APIs. It intercepts requests, extracts token usage, calculates costs, and stores everything in SQLite — without changing a single line of code.
+A lightweight local proxy for LLM observability. It sits between your apps and LLM APIs, captures every request and response, tracks token usage, and calculates costs — all stored locally in SQLite, without changing a single line of code.
+
+Not as heavy as enterprise platforms (Langfuse, Helicone, etc.) that need Docker, databases, and cloud accounts. Not as limited as log parsers (ccusage, tokscale) that only show token counts. llm.log gives you **full prompt/response capture with cost tracking** in a single binary you can install in seconds.
 
 - **Zero code changes** — works via `HTTPS_PROXY`, picked up by most apps automatically
+- **Full request/response capture** — every prompt and response stored, searchable, exportable
+- **Real costs** — auto-updated pricing for 800+ models, cache token breakdowns
 - **All major providers** — OpenAI, Anthropic, OpenRouter, Groq, DeepSeek, Mistral, and [more](#providers-and-formats)
 - **All API formats** — Chat Completions, Responses API, Anthropic Messages
-- **Real costs** — auto-updated pricing for 800+ models, cache token breakdowns
 - **Claude Code aware** — on a subscription? see what you'd pay without it. On API keys? see your actual spend
-- **Web UI** — browser-based dashboard with real-time charts, analytics, and detailed request inspection
-- **TUI dashboard** — terminal-based overview, charts, cost breakdown, request inspector
-- **Minimal overhead** — logging is async and never blocks your requests
-- **Single binary** — pure Go, no CGO, no dependencies
+- **Web UI + TUI** — browser dashboard with analytics, or terminal dashboard with interactive heatmap and mouse support
+- **Minimal overhead** — async logging, never blocks your requests
+- **Single binary** — pure Go, no CGO, no dependencies, no Docker
 
 ## Install
 
@@ -91,7 +93,7 @@ llm-log ui   # opens http://localhost:9923
 
 | Page | What it shows |
 |------|---------------|
-| **Dashboard** | Real-time metrics (animated), area charts (requests/cost/tokens), provider breakdown, top models |
+| **Dashboard** | Real-time metrics, contribution heatmap, area charts, provider breakdown, top models |
 | **Requests** | Paginated table with sorting, filters, search. Click a row to see full detail with copyable values |
 | **Analytics** | Tabbed sections — Cost (over time, cumulative, by provider, distribution, top expensive), Tokens (over time, avg/model, cache hit rate), Performance (latency, heatmap) |
 
@@ -103,12 +105,14 @@ llm-log dashboard   # or: llm-log dash
 
 | Tab | What it shows |
 |-----|---------------|
-| **Overview** | Total spend, request count, cache hit rate, contribution heatmap, top models |
+| **Overview** | Total spend, request count, cache hit rate, interactive contribution heatmap with per-day breakdown, top models |
 | **Chart** | Cumulative cost, requests, tokens, cache hit rate over time |
 | **Cost** | Breakdown by provider/model with percentages, latency, bars |
 | **Requests** | Browse requests, inspect full prompt/response JSON |
 
-**Keys:** `1-4` tabs · `p` period · `s` source · `f` provider · `m` model/provider · `j/k` navigate · `enter` detail · `c/p/r` copy · `e` export · `?` help · `q` quit
+**Keys:** `1-4` tabs · `tab` switch · `hjkl`/arrows navigate · `p` period · `s` source · `f` provider · `m` model/provider · `enter` detail · `c/p/r` copy · `e` export · `?` help · `q` quit
+
+**Mouse:** click tabs, heatmap cells, request rows · scroll wheel to navigate lists
 
 ## CLI
 
