@@ -137,7 +137,7 @@ func (s *SQLite) Stats(f StatsFilter) ([]StatRow, error) {
 	case "model":
 		groupCol = "model"
 	case "day":
-		groupCol = "date(timestamp)"
+		groupCol = "date(timestamp, 'localtime')"
 	}
 
 	query := fmt.Sprintf(`

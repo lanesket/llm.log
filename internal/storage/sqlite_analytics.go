@@ -259,15 +259,15 @@ func (s *SQLite) analyticsCostDistribution(fromStr, toStr string) (CostDistribut
 
 func (s *SQLite) analyticsHeatmap(fromStr, toStr string) ([]HeatmapEntry, error) {
 	query := `
-		SELECT CAST(strftime('%w', timestamp) AS INTEGER),
-			CAST(strftime('%H', timestamp) AS INTEGER),
+		SELECT CAST(strftime('%w', timestamp, 'localtime') AS INTEGER),
+			CAST(strftime('%H', timestamp, 'localtime') AS INTEGER),
 			COUNT(*), COALESCE(SUM(total_cost), 0)
 		FROM requests
 		WHERE 1=1`
 	var args []any
 	query, args = timeFilter(query, args, fromStr, toStr)
 	query += `
-		GROUP BY strftime('%w', timestamp), strftime('%H', timestamp)
+		GROUP BY strftime('%w', timestamp, 'localtime'), strftime('%H', timestamp, 'localtime')
 		ORDER BY 1, 2`
 
 	rows, err := s.db.Query(query, args...)

@@ -57,13 +57,11 @@ type Model struct {
 
 	daemonRunning bool
 
-	// Heatmap cursor
-	hmRow      int               // 0-6 (Mon-Sun)
-	hmCol      int               // 0..totalWeeks-1
-	hmGrid     *heatmapGrid      // computed grid metadata
-	hmDay      []storage.StatRow // model breakdown for selected day
-	periodFrom time.Time         // cached from loadData for loadHmDay
-	periodTo   time.Time
+	// Heatmap cursor (always shows all-time data, independent of period)
+	hmRow  int               // 0-6 (Mon-Sun)
+	hmCol  int               // 0..totalWeeks-1
+	hmGrid *heatmapGrid      // computed grid metadata
+	hmDay  []storage.StatRow // model breakdown for selected day
 
 	requests     []storage.Record
 	reqCursor    int
@@ -687,22 +685,79 @@ func (m Model) buildCompactTable(title string, stats []storage.StatRow, w int) s
 	// Content area that fits without wrapping = w - 4 (padding 2+2).
 	contentW := w - 4
 
-	var rows strings.Builder
-	hdr := "    " + padR(mutedStyle.Render("NAME"), 22) +
-		padL(mutedStyle.Render("REQS"), 6) +
-		padL(mutedStyle.Render("IN"), 7) +
-		padL(mutedStyle.Render("OUT"), 7)
-	if hasCache {
-		hdr += padL(mutedStyle.Render("C.RD"), 7) + padL(mutedStyle.Render("C.WR"), 7)
-	}
-	hdr += padL(mutedStyle.Render("COST"), 10) +
-		padL(mutedStyle.Render("%"), 5) +
-		padL(mutedStyle.Render("AVG"), 8)
-	rows.WriteString(hdr + "\n")
-
+	// Pre-compute totals for the footer row.
 	var totalReqs int
 	var totalIn, totalOut int64
 	var totalDuration int
+	for _, s := range stats {
+		totalReqs += s.Requests
+		totalIn += s.InputTokens
+		totalOut += s.OutputTokens
+		totalDuration += s.AvgDurationMs * s.Requests
+	}
+
+	// Compute column widths dynamically from data (including totals).
+	const gap = 2      // minimum space between columns
+	const colName = 20 // name column width (dot+space prefix adds 2 more)
+	const nameW = colName + 2
+	colReqs := len("REQS")
+	colIn := len("IN")
+	colOut := len("OUT")
+	colCRD := len("C.RD")
+	colCWR := len("C.WR")
+	colCost := len("COST")
+	colPct := len("%")
+	colAvg := len("AVG")
+
+	// Measure all data rows + total row.
+	for _, s := range stats {
+		colReqs = max(colReqs, len(fmt.Sprintf("%d", s.Requests)))
+		colIn = max(colIn, len(format.Tokens(s.InputTokens)))
+		colOut = max(colOut, len(format.Tokens(s.OutputTokens)))
+		if hasCache {
+			colCRD = max(colCRD, len(format.Tokens(s.CacheReadTokens)))
+			colCWR = max(colCWR, len(format.Tokens(s.CacheWriteTokens)))
+		}
+		colCost = max(colCost, len(format.Cost(s.TotalCost)))
+		colAvg = max(colAvg, len(fmt.Sprintf("%dms", s.AvgDurationMs)))
+	}
+	colReqs = max(colReqs, len(fmt.Sprintf("%d", totalReqs)))
+	colIn = max(colIn, len(format.Tokens(totalIn)))
+	colOut = max(colOut, len(format.Tokens(totalOut)))
+	colCost = max(colCost, len(format.Cost(totalCost)))
+	avgMs := 0
+	if totalReqs > 0 {
+		avgMs = totalDuration / totalReqs
+	}
+	colAvg = max(colAvg, len(fmt.Sprintf("%dms", avgMs)))
+
+	// Add gap to each right-aligned column.
+	colReqs += gap
+	colIn += gap
+	colOut += gap
+	if hasCache {
+		colCRD += gap
+		colCWR += gap
+	}
+	colCost += gap
+	colPct += gap
+	colAvg += gap
+
+	// Header.
+	var rows strings.Builder
+	hdr := "    " + padR(mutedStyle.Render("NAME"), nameW) +
+		padL(mutedStyle.Render("REQS"), colReqs) +
+		padL(mutedStyle.Render("IN"), colIn) +
+		padL(mutedStyle.Render("OUT"), colOut)
+	if hasCache {
+		hdr += padL(mutedStyle.Render("C.RD"), colCRD) + padL(mutedStyle.Render("C.WR"), colCWR)
+	}
+	hdr += padL(mutedStyle.Render("COST"), colCost) +
+		padL(mutedStyle.Render("%"), colPct) +
+		padL(mutedStyle.Render("AVG"), colAvg)
+	rows.WriteString(hdr + "\n")
+
+	// Data rows.
 	for _, s := range stats {
 		pct := "  —"
 		if totalCost > 0 {
@@ -716,50 +771,41 @@ func (m Model) buildCompactTable(title string, stats []storage.StatRow, w int) s
 		}
 		color := providerColor(colorKey)
 		dot := lipgloss.NewStyle().Foreground(color).Render("●")
-		latency := padL("—", 8)
+		latency := padL("—", colAvg)
 		if s.AvgDurationMs > 0 {
-			latency = padL(fmt.Sprintf("%dms", s.AvgDurationMs), 8)
+			latency = padL(fmt.Sprintf("%dms", s.AvgDurationMs), colAvg)
 		}
-		line := "  " + dot + " " + padR(format.Truncate(displayKey, 20), 22) +
-			padL(fmt.Sprintf("%d", s.Requests), 6) +
-			padL(format.Tokens(s.InputTokens), 7) +
-			padL(format.Tokens(s.OutputTokens), 7)
+		line := "  " + dot + " " + padR(format.Truncate(displayKey, colName), nameW) +
+			padL(fmt.Sprintf("%d", s.Requests), colReqs) +
+			padL(format.Tokens(s.InputTokens), colIn) +
+			padL(format.Tokens(s.OutputTokens), colOut)
 		if hasCache {
-			line += padL(format.Tokens(s.CacheReadTokens), 7) +
-				padL(format.Tokens(s.CacheWriteTokens), 7)
+			line += padL(format.Tokens(s.CacheReadTokens), colCRD) +
+				padL(format.Tokens(s.CacheWriteTokens), colCWR)
 		}
-		line += padL(format.Cost(s.TotalCost), 10) +
-			mutedStyle.Render(padL(pct, 5)) +
+		line += padL(format.Cost(s.TotalCost), colCost) +
+			mutedStyle.Render(padL(pct, colPct)) +
 			mutedStyle.Render(latency)
 		barW := min(15, contentW-lipgloss.Width(line)-1)
 		if barW > 2 {
 			line += " " + hbar(s.TotalCost, maxCost, barW, color)
 		}
 		rows.WriteString(line + "\n")
-
-		totalReqs += s.Requests
-		totalIn += s.InputTokens
-		totalOut += s.OutputTokens
-		totalDuration += s.AvgDurationMs * s.Requests
 	}
 
-	// Total row
+	// Total row.
 	colsW := lipgloss.Width(hdr)
 	rows.WriteString("  " + mutedStyle.Render(strings.Repeat("─", max(1, colsW-2))) + "\n")
-	totalLine := "    " + padR(brightStyle.Render("Total"), 22) +
-		padL(brightStyle.Render(fmt.Sprintf("%d", totalReqs)), 6) +
-		padL(brightStyle.Render(format.Tokens(totalIn)), 7) +
-		padL(brightStyle.Render(format.Tokens(totalOut)), 7)
+	totalLine := "    " + padR(brightStyle.Render("Total"), nameW) +
+		padL(brightStyle.Render(fmt.Sprintf("%d", totalReqs)), colReqs) +
+		padL(brightStyle.Render(format.Tokens(totalIn)), colIn) +
+		padL(brightStyle.Render(format.Tokens(totalOut)), colOut)
 	if hasCache {
-		totalLine += padL("", 7) + padL("", 7)
+		totalLine += padL("", colCRD) + padL("", colCWR)
 	}
-	avgMs := 0
-	if totalReqs > 0 {
-		avgMs = totalDuration / totalReqs
-	}
-	totalLine += padL(brightStyle.Render(format.Cost(totalCost)), 10) +
-		padL("", 5) +
-		mutedStyle.Render(padL(fmt.Sprintf("%dms", avgMs), 8))
+	totalLine += padL(brightStyle.Render(format.Cost(totalCost)), colCost) +
+		padL("", colPct) +
+		mutedStyle.Render(padL(fmt.Sprintf("%dms", avgMs), colAvg))
 	rows.WriteString(totalLine + "\n")
 
 	return boxStyle.Width(w).Render(titleStyle.Render("  "+title) + "\n" + rows.String())
@@ -1065,15 +1111,11 @@ func (m *Model) loadHmDay() {
 		return
 	}
 	d := m.hmGrid.CellToDate(m.hmCol, m.hmRow)
-	dayStart := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location()).UTC()
+	dayStart := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.Local).UTC()
 	dayEnd := dayStart.AddDate(0, 0, 1)
 
-	// Don't show data outside the selected period (padding cells from week alignment).
-	if !m.periodFrom.IsZero() && dayStart.Before(m.periodFrom) {
-		m.hmDay = nil
-		return
-	}
-	if !m.periodTo.IsZero() && dayEnd.After(m.periodTo) {
+	// Don't show future days (padding cells from week alignment).
+	if dayStart.After(time.Now().UTC()) {
 		m.hmDay = nil
 		return
 	}
@@ -1088,7 +1130,6 @@ func (m *Model) loadData() {
 	_, m.daemonRunning = daemon.IsRunning(m.dataDir)
 
 	from, to := storage.PeriodToTimeRange(m.period)
-	m.periodFrom, m.periodTo = from, to
 	m.availSources = m.buildAvailSources(from, to)
 	pf := m.providerFilter
 	f := func(groupBy string) []storage.StatRow {
@@ -1100,7 +1141,8 @@ func (m *Model) loadData() {
 	case tabOverview:
 		m.providerStats = f("provider")
 		m.modelStats = f("model")
-		m.dailyStats = f("day")
+		// Heatmap always shows all-time data (independent of period).
+		m.dailyStats, _ = m.store.Stats(storage.StatsFilter{GroupBy: "day", Provider: pf, Source: m.source})
 		prevFrom, prevTo := previousPeriod(m.period)
 		if !prevFrom.IsZero() {
 			m.prevProviderStats, _ = m.store.Stats(storage.StatsFilter{

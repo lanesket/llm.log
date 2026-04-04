@@ -109,11 +109,21 @@ type ChartPoint struct {
 	Tokens    int64     `json:"tokens"`
 }
 
-// DailyActivity is one day's aggregated activity for the contribution heatmap.
-type DailyActivity struct {
-	Date     string  `json:"date"` // "2006-01-02"
+// DailyModelStat is a single model's stats within a day.
+type DailyModelStat struct {
+	Model    string  `json:"model"`
+	Provider string  `json:"provider"`
 	Requests int     `json:"requests"`
 	Cost     float64 `json:"cost"`
+}
+
+// DailyActivity is one day's aggregated activity for the contribution heatmap.
+type DailyActivity struct {
+	Date       string           `json:"date"` // "2006-01-02"
+	Requests   int              `json:"requests"`
+	Cost       float64          `json:"cost"`
+	Models     []DailyModelStat `json:"models,omitempty"`
+	ModelCount int              `json:"model_count,omitempty"`
 }
 
 // DashboardData holds all data needed to render the dashboard.

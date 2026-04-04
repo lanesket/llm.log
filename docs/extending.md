@@ -31,11 +31,11 @@ That's it. The `init()` call registers the domain, the proxy picks it up automat
 
 ### Scenario 2: Different usage fields
 
-Some providers use Chat Completions but report tokens differently. Create a custom `usageMapper` — a function that extracts token counts from raw usage JSON.
+Some providers use Chat Completions but report tokens differently. Add a custom `usageMapper` — a function that extracts token counts from raw usage JSON.
 
-1. Create `internal/provider/wire/<name>_chat_completions.go` with a `usageMapper` — see `deepseek_chat_completions.go` as an example
+1. Add a `usageMapper` and a new `Format` variable in `internal/provider/wire/chat_completions.go` — see `DeepSeekChatCompletions` as an example
 2. Create `internal/provider/<name>.go` pointing to your new format
-3. Add tests in `wire/<name>_chat_completions_test.go`
+3. Add tests in `wire/chat_completions_test.go`
 4. Add to `providers_test.go` and `README.md`
 
 The shared `parseCCResponse` / `parseCCStream` in `chat_completions.go` handle all JSON and SSE parsing — you only write the usage mapper.

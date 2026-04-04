@@ -59,7 +59,7 @@ var (
 
 	// Heatmap intensity levels (0 = empty, 1-4 = increasing activity).
 	heatmapColors = [5]lipgloss.Color{
-		lipgloss.Color("#1F2937"), // level 0: no data (dark gray)
+		lipgloss.Color("#374151"), // level 0: no data (visible gray)
 		lipgloss.Color("#4C1D95"), // level 1: low
 		lipgloss.Color("#6D28D9"), // level 2: medium
 		lipgloss.Color("#7C3AED"), // level 3: high (matches colorPrimary)

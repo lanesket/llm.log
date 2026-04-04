@@ -81,11 +81,12 @@ var (
 )
 
 func init() {
+	cursorFrame := lipgloss.Color("#E2E8F0")
 	heatmapCells[0] = lipgloss.NewStyle().Foreground(heatmapColors[0]).Render("··")
-	heatmapCursorCell[0] = lipgloss.NewStyle().Foreground(heatmapColors[0]).Reverse(true).Render("··")
+	heatmapCursorCell[0] = lipgloss.NewStyle().Foreground(cursorFrame).Background(heatmapColors[0]).Render("▌▐")
 	for i := 1; i < len(heatmapColors); i++ {
 		heatmapCells[i] = lipgloss.NewStyle().Foreground(heatmapColors[i]).Render("██")
-		heatmapCursorCell[i] = lipgloss.NewStyle().Foreground(heatmapColors[i]).Reverse(true).Render("██")
+		heatmapCursorCell[i] = lipgloss.NewStyle().Foreground(cursorFrame).Background(heatmapColors[i]).Render("▌▐")
 	}
 }
 

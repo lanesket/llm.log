@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.1] — 2026-04-04
+
+### Fixed
+- **Timezone-aware date grouping** — all SQL date/time functions (`DATE`, `strftime`) now use `'localtime'` modifier; heatmap, charts, and analytics heatmap group by the user's local day/hour instead of UTC
+- **Heatmap "no activity" on today** — `loadHmDay` compared day-end (next midnight UTC) against current time, always excluding today; now compares day-start
+- **Web heatmap date keys** — `toISOString().slice(0,10)` produced UTC dates for lookup keys; replaced with local-date formatting via `formatDateKey()`
+
+### Added
+- **Per-day model breakdown in heatmap** — hovering a day in web UI shows a tooltip with top 5 models (provider dot, name, requests, cost) and "+N more" when truncated; backed by new `models` and `model_count` fields in `DailyActivity` API response
+- **Always-visible heatmap** — heatmap now shows all-time activity regardless of selected period (TUI and web); period controls only affect metrics, chart, and breakdown panels
+- **Dynamic column widths in TUI cost table** — columns auto-size from data with a 2-char minimum gap; no more overlapping values when numbers grow large
+- **Heatmap cursor frame** — TUI cursor uses `▌▐` half-blocks with bright frame + intensity background instead of invisible `Reverse(true)` on full blocks
+
+### Changed
+- Empty heatmap cells color `#1F2937` → `#374151` for better visibility against dark backgrounds
+- Web heatmap cells enlarged from 14px to 15px with increased label column (32px → 40px) for breathing room
+- Web heatmap tooltip positioned from cell rect with flip-below logic when near top edge; shows "No activity" for empty days
+
 ## [0.5.0] — 2026-03-30
 
 ### Added

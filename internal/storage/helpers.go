@@ -30,13 +30,13 @@ func chartBucket(from, to time.Time, granularity string) (bucketExpr, parseLayou
 
 	switch g {
 	case "minute":
-		return "strftime('%Y-%m-%dT%H:%M:00', timestamp)", "2006-01-02T15:04:05"
+		return "strftime('%Y-%m-%dT%H:%M:00', timestamp, 'localtime')", "2006-01-02T15:04:05"
 	case "hour":
-		return "strftime('%Y-%m-%dT%H:00:00', timestamp)", "2006-01-02T15:04:05"
+		return "strftime('%Y-%m-%dT%H:00:00', timestamp, 'localtime')", "2006-01-02T15:04:05"
 	case "day":
-		return "date(timestamp)", "2006-01-02"
+		return "date(timestamp, 'localtime')", "2006-01-02"
 	default: // week
-		return "strftime('%Y-W%W', timestamp)", ""
+		return "strftime('%Y-W%W', timestamp, 'localtime')", ""
 	}
 }
 

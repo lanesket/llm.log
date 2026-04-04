@@ -68,6 +68,10 @@ export function darken(hex: string, amount: number): string {
   return '#' + [r, g, b].map(c => Math.max(0, Math.round(c * (1 - amount))).toString(16).padStart(2, '0')).join('');
 }
 
+export function formatDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function formatDelta(current: number, prev: number): { text: string; positive: boolean } | null {
   if (prev === 0) return current === 0 ? null : { text: 'new', positive: true };
   const pct = ((current - prev) / prev) * 100;

@@ -59,8 +59,8 @@ func (s *SQLite) DashboardStats(from, to time.Time) (*DashboardData, error) {
 		return nil, fmt.Errorf("chart: %w", err)
 	}
 
-	// 5. Daily activity for contribution heatmap.
-	data.Activity, err = s.queryDailyActivity(fromStr, toStr)
+	// 5. Daily activity for contribution heatmap (always all-time).
+	data.Activity, err = s.queryDailyActivity("", "")
 	if err != nil {
 		return nil, fmt.Errorf("activity: %w", err)
 	}
@@ -166,8 +166,9 @@ func (s *SQLite) queryChart(from, to time.Time, fromStr, toStr string) ([]ChartP
 }
 
 func (s *SQLite) queryDailyActivity(fromStr, toStr string) ([]DailyActivity, error) {
+	// Aggregate totals per day.
 	query := `
-		SELECT DATE(timestamp) AS day,
+		SELECT DATE(timestamp, 'localtime') AS day,
 			COUNT(*),
 			COALESCE(SUM(total_cost), 0)
 		FROM requests
@@ -192,5 +193,56 @@ func (s *SQLite) queryDailyActivity(fromStr, toStr string) ([]DailyActivity, err
 		}
 		result = append(result, d)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Top models per day (up to 5 per day, ordered by cost).
+	modelQuery := `
+		SELECT DATE(timestamp, 'localtime') AS day,
+			model, MIN(provider),
+			COUNT(*),
+			COALESCE(SUM(total_cost), 0)
+		FROM requests
+		WHERE 1=1`
+	var modelArgs []any
+	modelQuery, modelArgs = timeFilter(modelQuery, modelArgs, fromStr, toStr)
+	modelQuery += `
+		GROUP BY day, model
+		ORDER BY day ASC, COALESCE(SUM(total_cost), 0) DESC`
+
+	modelRows, err := s.db.Query(modelQuery, modelArgs...)
+	if err != nil {
+		return result, nil // non-fatal: return totals without model breakdown
+	}
+	defer modelRows.Close()
+
+	dayIndex := make(map[string]int, len(result))
+	for i, d := range result {
+		dayIndex[d.Date] = i
+	}
+	dayCounts := make(map[string]int, len(result))
+
+	for modelRows.Next() {
+		var day, model, provider string
+		var reqs int
+		var cost float64
+		if err := modelRows.Scan(&day, &model, &provider, &reqs, &cost); err != nil {
+			break
+		}
+		idx, ok := dayIndex[day]
+		if !ok {
+			continue
+		}
+		result[idx].ModelCount++
+		if dayCounts[day] >= 5 {
+			continue
+		}
+		dayCounts[day]++
+		result[idx].Models = append(result[idx].Models, DailyModelStat{
+			Model: model, Provider: provider, Requests: reqs, Cost: cost,
+		})
+	}
+
+	return result, nil
 }

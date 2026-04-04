@@ -1029,11 +1029,11 @@ func TestAnalytics_OverTime(t *testing.T) {
 func TestAnalytics_Heatmap(t *testing.T) {
 	store := testDB(t)
 
-	// Wednesday (day_of_week=3) at 14:00
+	// Wednesday (day_of_week=3) at 14:00 local time
 	cost := 0.05
 	for i := 0; i < 3; i++ {
 		store.Save(&Record{
-			Timestamp:  time.Date(2025, 6, 11, 14, i, 0, 0, time.UTC), // Wednesday
+			Timestamp:  time.Date(2025, 6, 11, 14, i, 0, 0, time.Local), // Wednesday
 			Provider:   "openai",
 			Model:      "gpt-4",
 			Endpoint:   "/v1/chat/completions",
@@ -1041,9 +1041,9 @@ func TestAnalytics_Heatmap(t *testing.T) {
 			StatusCode: 200,
 		})
 	}
-	// Sunday (day_of_week=0) at 9:00
+	// Sunday (day_of_week=0) at 9:00 local time
 	store.Save(&Record{
-		Timestamp:  time.Date(2025, 6, 8, 9, 0, 0, 0, time.UTC), // Sunday
+		Timestamp:  time.Date(2025, 6, 8, 9, 0, 0, 0, time.Local), // Sunday
 		Provider:   "openai",
 		Model:      "gpt-4",
 		Endpoint:   "/v1/chat/completions",

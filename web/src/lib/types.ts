@@ -34,10 +34,19 @@ export interface ChartPoint {
   tokens: number;
 }
 
+export interface DailyModelStat {
+  model: string;
+  provider: string;
+  requests: number;
+  cost: number;
+}
+
 export interface DailyActivity {
   date: string;     // "2006-01-02"
   requests: number;
   cost: number;
+  models?: DailyModelStat[];
+  model_count?: number;
 }
 
 export interface DashboardResponse {
