@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#111318"/>
+      <stop offset="100%" stop-color="#0d0f14"/>
+    </linearGradient>
+    <clipPath id="screen-clip">
+      <rect x="40" y="100" width="740" height="440" rx="12"/>
+    </clipPath>
+    <filter id="screen-shadow">
+      <feDropShadow dx="0" dy="8" stdDeviation="24" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="screen-glow">
+      <feDropShadow dx="0" dy="0" stdDeviation="20" flood-color="#10b981" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+    <circle cx="20" cy="20" r="0.5" fill="#ffffff" opacity="0.025"/>
+  </pattern>
+  <rect width="1280" height="640" fill="url(#dots)"/>
+
+  <!-- TUI Screenshot — left side -->
+  <g filter="url(#screen-shadow)">
+    <g filter="url(#screen-glow)">
+      <!-- Window chrome -->
+      <rect x="40" y="80" width="740" height="460" rx="12" fill="#1a1b26"/>
+      <!-- Title bar -->
+      <rect x="40" y="80" width="740" height="32" rx="12" fill="#1e1f2e"/>
+      <rect x="40" y="100" width="740" height="12" fill="#1e1f2e"/>
+      <!-- Traffic lights -->
+      <circle cx="62" cy="96" r="5.5" fill="#ff5f57"/>
+      <circle cx="80" cy="96" r="5.5" fill="#febc2e"/>
+      <circle cx="98" cy="96" r="5.5" fill="#28c840"/>
+      <!-- Title text -->
+      <text x="410" y="100" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" fill="#6b7280" text-anchor="middle">llm-log dash</text>
+
+      <!-- Screenshot content -->
+      <image xlink:href="data:image/png;base64," x="40" y="100" width="740" height="440" clip-path="url(#screen-clip)" preserveAspectRatio="xMidYMid slice"/>
+    </g>
+  </g>
+
+  <!-- Right side — text content -->
+  <g transform="translate(850, 180)">
+    <!-- llm.log -->
+    <text font-family="ui-monospace, 'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, monospace"
+          font-size="72" font-weight="700" fill="#f0fdf4" letter-spacing="-2">
+      llm.log
+    </text>
+
+    <!-- Tagline -->
+    <text y="44"
+          font-family="ui-sans-serif, system-ui, -apple-system, sans-serif"
+          font-size="20" fill="#6ee7b7" opacity="0.8" letter-spacing="0.5">
+      Lightweight LLM observability
+    </text>
+
+    <!-- Accent line -->
+    <rect y="62" width="60" height="2" rx="1" fill="#10b981" opacity="0.4"/>
+
+    <!-- Feature pills -->
+    <g transform="translate(0, 90)" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13">
+      <rect width="108" height="28" rx="6" fill="#10b981" opacity="0.1" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="54" y="18" fill="#6ee7b7" text-anchor="middle">TUI + Web UI</text>
+
+      <rect x="118" width="110" height="28" rx="6" fill="#10b981" opacity="0.1" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="173" y="18" fill="#6ee7b7" text-anchor="middle">Cost Tracking</text>
+
+      <rect y="38" width="120" height="28" rx="6" fill="#10b981" opacity="0.1" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="60" y="56" fill="#6ee7b7" text-anchor="middle">10+ Providers</text>
+
+      <rect x="130" y="38" width="108" height="28" rx="6" fill="#10b981" opacity="0.1" stroke="#10b981" stroke-opacity="0.2" stroke-width="1"/>
+      <text x="184" y="56" fill="#6ee7b7" text-anchor="middle">Zero Config</text>
+    </g>
+  </g>
+</svg>
